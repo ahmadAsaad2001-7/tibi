@@ -1,0 +1,91 @@
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - depguard
+    - errcheck
+    - govet
+    - staticcheck
+    - gosimple
+    - ineffassign
+    - unused
+    - gofmt
+    - goimports
+
+linters-settings:
+  depguard:
+    rules:
+      # Identity may only import its own packages, platform, and other modules' contracts.
+      identity:
+        files: ["**/internal/identity/**"]
+        allow:
+          - $gostd
+          - github.com/ahmadAsaad2001-7/tibi/internal/identity
+          - github.com/ahmadAsaad2001-7/tibi/internal/patients/contracts
+          - github.com/ahmadAsaad2001-7/tibi/internal/platform
+          - github.com/go-chi/chi/v5
+          - github.com/go-playground/validator/v10
+          - github.com/jackc/pgx/v5
+          - github.com/golang-jwt/jwt/v5
+          - github.com/google/uuid
+          - github.com/alexedwards/argon2id
+
+      patients:
+        files: ["**/internal/patients/**"]
+        allow:
+          - $gostd
+          - github.com/ahmadAsaad2001-7/tibi/internal/patients
+          - github.com/ahmadAsaad2001-7/tibi/internal/platform
+          - github.com/jackc/pgx/v5
+
+      platform:
+        files: ["**/internal/platform/**"]
+        # Platform imports no module. This is enforced by absence, not by allow.
+        deny:
+          - github.com/ahmadAsaad2001-7/tibi/internal/identity
+          - github.com/ahmadAsaad2001-7/tibi/internal/patients
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

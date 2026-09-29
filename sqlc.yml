@@ -1,0 +1,38 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    schema: "migrations/"
+    queries: "internal/identity/register/query.sql"
+    gen:
+      go:
+        package: "regdb"
+        out: "internal/identity/register/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+        overrides:
+          - db_type: "user_role"
+            go_type: "github.com/ahmadAsaad2001-7/tibi/internal/identity/user.Role"
+  - engine: "postgresql"
+    schema: "migrations/"
+    queries: "internal/identity/login/query.sql"
+    gen:
+      go:
+        package: "logdb"
+        out: "internal/identity/login/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema: "migrations/"
+    queries: "internal/identity/refresh/query.sql"
+    gen:
+      go:
+        package: "refdb"
+        out: "internal/identity/refresh/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema: "migrations/"
+    queries: "internal/patients/createprofile/query.sql"
+    gen:
+      go:
+        package: "credb"
+        out: "internal/patients/createprofile/db"
+        sql_package: "pgx/v5"
