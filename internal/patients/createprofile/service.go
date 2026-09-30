@@ -3,10 +3,10 @@ package createprofile
 import (
 	"context"
 
-	"github.com/ahmadAsaad2001-7/tibi/internal/patients/contracts"
-	"github.com/ahmadAsaad2001-7/tibi/internal/patients/createprofile/db"
-	"github.com/ahmadAsaad2001-7/tibi/internal/platform/database"
-	"github.com/ahmadAsaad2001-7/tibi/internal/platform/httpx"
+	"tibi/internal/patients/contracts"
+	"tibi/internal/patients/createprofile/db"
+	"tibi/internal/platform/database"
+	"tibi/internal/platform/httpx"
 )
 
 // Service implements contracts.API. It is constructed in main and

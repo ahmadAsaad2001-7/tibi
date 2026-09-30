@@ -21,6 +21,11 @@ func NewTokenIssuer(secret string, accessTTL time.Duration) *TokenIssuer {
 	return &TokenIssuer{secret: []byte(secret), accessTTL: accessTTL}
 }
 
+// ExpiresIn is the access-token lifetime in seconds.
+func (t *TokenIssuer) ExpiresIn() int {
+	return int(t.accessTTL.Seconds())
+}
+
 // IssueAccess returns a signed JWT. Role is a plain string —
 // platform does not import any module's Role type.
 func (t *TokenIssuer) IssueAccess(userID int64, role string) (string, error) {

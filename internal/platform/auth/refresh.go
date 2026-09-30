@@ -8,7 +8,7 @@ import (
 	"encoding/hex"
 	"time"
 
-	"github.com/ahmadAsaad2001-7/tibi/internal/platform/database"
+	"tibi/internal/platform/database"
 )
 
 type RefreshStore struct {

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ahmadAsaad2001-7/tibi/internal/platform/httpx"
+	"tibi/internal/platform/httpx"
 )
 
 func RequireAuth(issuer *TokenIssuer) func(http.Handler) http.Handler {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -12,15 +13,21 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/ahmadAsaad2001-7/tibi/internal/identity/login"
-	"github.com/ahmadAsaad2001-7/tibi/internal/identity/logout"
-	"github.com/ahmadAsaad2001-7/tibi/internal/identity/refresh"
-	"github.com/ahmadAsaad2001-7/tibi/internal/identity/register"
-	patientscreate "github.com/ahmadAsaad2001-7/tibi/internal/patients/createprofile"
-	"github.com/ahmadAsaad2001-7/tibi/internal/platform/auth"
-	"github.com/ahmadAsaad2001-7/tibi/internal/platform/config"
-	"github.com/ahmadAsaad2001-7/tibi/internal/platform/database"
-	"github.com/ahmadAsaad2001-7/tibi/internal/platform/httpx"
+	"tibi/internal/doctors/contracts"
+	doctorscreate "tibi/internal/doctors/createprofile"
+	"tibi/internal/doctors/listspecialties"
+	"tibi/internal/doctors/submitforverification"
+	"tibi/internal/doctors/updateprofile"
+	"tibi/internal/identity/login"
+	"tibi/internal/identity/logout"
+	"tibi/internal/identity/me"
+	"tibi/internal/identity/refresh"
+	"tibi/internal/identity/register"
+	patientscreate "tibi/internal/patients/createprofile"
+	"tibi/internal/platform/auth"
+	"tibi/internal/platform/config"
+	"tibi/internal/platform/database"
+	"tibi/internal/platform/httpx"
 )
 
 func main() {
@@ -61,14 +68,18 @@ func run() error {
 	issuer := auth.NewTokenIssuer(cfg.JWTSecret, cfg.JWTAccessTTL)
 	refreshStore := auth.NewRefreshStore(db, cfg.JWTRefreshTTL)
 
-	// Patients module — the contract implementation.
+	// Module services.
 	patientsAPI := patientscreate.NewService(db)
+	doctorsAPI := doctorscreate.NewService(db)
+	specialtiesSvc := listspecialties.NewService(db)
+	updateProfileSvc := updateprofile.NewService(db)
+	submitVerifSvc := submitforverification.NewService(db)
 
-	// Identity module — slices.
-	registerSvc := register.NewService(db, hasher, issuer, refreshStore, patientsAPI)
+	registerSvc := register.NewService(db, hasher, issuer, refreshStore, patientsAPI, doctorsAPI)
 	loginSvc := login.NewService(db, hasher, issuer, refreshStore)
 	refreshSvc := refresh.NewService(db, issuer, refreshStore)
 	logoutSvc := logout.NewService(refreshStore)
+	meSvc := me.NewService(db)
 
 	r := chi.NewRouter()
 	r.Use(httpx.Trace)
@@ -84,17 +95,33 @@ func run() error {
 			r.Post("/register", register.NewHandler(registerSvc).ServeHTTP)
 			r.Post("/login", login.NewHandler(loginSvc).ServeHTTP)
 			r.Post("/refresh", refresh.NewHandler(refreshSvc).ServeHTTP)
+
 			r.Group(func(r chi.Router) {
 				r.Use(auth.RequireAuth(issuer))
+				r.Get("/me", me.NewHandler(meSvc).ServeHTTP)
 				r.Post("/logout", func(w http.ResponseWriter, r *http.Request) {
 					var cmd logout.Command
-					// decode...
+					if err := json.NewDecoder(r.Body).Decode(&cmd); err != nil {
+						httpx.Error(w, r, httpx.BadRequest("malformed json"))
+						return
+					}
 					if err := logoutSvc.Execute(r.Context(), cmd); err != nil {
 						httpx.Error(w, r, err)
 						return
 					}
 					w.WriteHeader(http.StatusNoContent)
 				})
+			})
+		})
+
+		r.Get("/specialties", listspecialties.NewHandler(specialtiesSvc).ServeHTTP)
+
+		r.Route("/profile", func(r chi.Router) {
+			r.Group(func(r chi.Router) {
+				r.Use(auth.RequireAuth(issuer))
+				r.Use(auth.RequireRole(contracts.RoleDoctor, contracts.RolePendingDoctor))
+				r.Patch("/doctor", updateprofile.NewHandler(updateProfileSvc).ServeHTTP)
+				r.Post("/doctor/submit-for-verification", submitforverification.NewHandler(submitVerifSvc).ServeHTTP)
 			})
 		})
 	})

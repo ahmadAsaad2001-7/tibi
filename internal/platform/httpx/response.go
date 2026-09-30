@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-
-	"github.com/ahmadAsaad2001-7/tibi/internal/platform/httpx/trace"
 )
 
 func JSON(w http.ResponseWriter, status int, body any) {
@@ -19,7 +17,7 @@ func JSON(w http.ResponseWriter, status int, body any) {
 // Error writes the standard error envelope. Logs the underlying cause.
 func Error(w http.ResponseWriter, r *http.Request, err error) {
 	he := As(err)
-	traceID := trace.ID(r.Context())
+	traceID := ID(r.Context())
 
 	logAttrs := []any{
 		"code", he.Code, "status", he.Status,

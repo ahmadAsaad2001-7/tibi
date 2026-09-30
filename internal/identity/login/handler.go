@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/ahmadAsaad2001-7/tibi/internal/platform/httpx"
+	"tibi/internal/platform/httpx"
 )
 
 type Handler struct{ svc *Service }

@@ -3,8 +3,8 @@ package logout
 import (
 	"context"
 
-	"github.com/ahmadAsaad2001-7/tibi/internal/platform/auth"
-	"github.com/ahmadAsaad2001-7/tibi/internal/platform/httpx"
+	"tibi/internal/platform/auth"
+	"tibi/internal/platform/httpx"
 )
 
 type Service struct {

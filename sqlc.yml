@@ -11,7 +11,7 @@ sql:
         emit_pointers_for_null_types: true
         overrides:
           - db_type: "user_role"
-            go_type: "github.com/ahmadAsaad2001-7/tibi/internal/identity/user.Role"
+            go_type: "tibi/internal/identity/user.Role"
   - engine: "postgresql"
     schema: "migrations/"
     queries: "internal/identity/login/query.sql"
@@ -22,17 +22,53 @@ sql:
         sql_package: "pgx/v5"
   - engine: "postgresql"
     schema: "migrations/"
-    queries: "internal/identity/refresh/query.sql"
-    gen:
-      go:
-        package: "refdb"
-        out: "internal/identity/refresh/db"
-        sql_package: "pgx/v5"
-  - engine: "postgresql"
-    schema: "migrations/"
     queries: "internal/patients/createprofile/query.sql"
     gen:
       go:
         package: "credb"
         out: "internal/patients/createprofile/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema: "migrations/"
+    queries: "internal/identity/me/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/identity/me/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+        overrides:
+          - db_type: "user_role"
+            go_type: "tibi/internal/identity/user.Role"
+  - engine: "postgresql"
+    schema: "migrations/"
+    queries: "internal/doctors/createprofile/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctors/createprofile/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema: "migrations/"
+    queries: "internal/doctors/listspecialties/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctors/listspecialties/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema: "migrations/"
+    queries: "internal/doctors/updateprofile/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctors/updateprofile/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema: "migrations/"
+    queries: "internal/doctors/submitforverification/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctors/submitforverification/db"
         sql_package: "pgx/v5"

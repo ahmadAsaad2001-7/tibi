@@ -21,9 +21,10 @@ linters-settings:
         files: ["**/internal/identity/**"]
         allow:
           - $gostd
-          - github.com/ahmadAsaad2001-7/tibi/internal/identity
-          - github.com/ahmadAsaad2001-7/tibi/internal/patients/contracts
-          - github.com/ahmadAsaad2001-7/tibi/internal/platform
+          - tibi/internal/identity
+          - tibi/internal/patients/contracts
+          - tibi/internal/doctors/contracts
+          - tibi/internal/platform
           - github.com/go-chi/chi/v5
           - github.com/go-playground/validator/v10
           - github.com/jackc/pgx/v5
@@ -35,16 +36,26 @@ linters-settings:
         files: ["**/internal/patients/**"]
         allow:
           - $gostd
-          - github.com/ahmadAsaad2001-7/tibi/internal/patients
-          - github.com/ahmadAsaad2001-7/tibi/internal/platform
+          - tibi/internal/patients
+          - tibi/internal/platform
           - github.com/jackc/pgx/v5
+
+      doctors:
+        files: ["**/internal/doctors/**"]
+        allow:
+          - $gostd
+          - tibi/internal/doctors
+          - tibi/internal/platform
+          - github.com/jackc/pgx/v5
+          - github.com/go-playground/validator/v10
 
       platform:
         files: ["**/internal/platform/**"]
         # Platform imports no module. This is enforced by absence, not by allow.
         deny:
-          - github.com/ahmadAsaad2001-7/tibi/internal/identity
-          - github.com/ahmadAsaad2001-7/tibi/internal/patients
+          - tibi/internal/identity
+          - tibi/internal/patients
+          - tibi/internal/doctors
 
 
 

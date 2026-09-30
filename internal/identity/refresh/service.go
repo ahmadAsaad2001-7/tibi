@@ -6,9 +6,9 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/ahmadAsaad2001-7/tibi/internal/platform/auth"
-	"github.com/ahmadAsaad2001-7/tibi/internal/platform/database"
-	"github.com/ahmadAsaad2001-7/tibi/internal/platform/httpx"
+	"tibi/internal/platform/auth"
+	"tibi/internal/platform/database"
+	"tibi/internal/platform/httpx"
 )
 
 type Service struct {
@@ -48,7 +48,10 @@ func (s *Service) Execute(ctx context.Context, cmd Command) (*Response, error) {
 		if err := q.QueryRow(ctx,
 			`SELECT role FROM identity_users WHERE id = $1 AND deleted_at IS NULL`,
 			userID).Scan(&role); err != nil {
-			return httpx.Unauthenticated("user no longer valid")
+			if errors.Is(err, pgx.ErrNoRows) {
+				return httpx.Unauthenticated("user no longer valid")
+			}
+			return httpx.Internal(err)
 		}
 
 		access, err := s.jwt.IssueAccess(userID, role)
@@ -60,7 +63,7 @@ func (s *Service) Execute(ctx context.Context, cmd Command) (*Response, error) {
 			return httpx.Internal(err)
 		}
 
-		resp = &Response{AccessToken: access, RefreshToken: refresh, ExpiresIn: 900}
+		resp = &Response{AccessToken: access, RefreshToken: refresh, ExpiresIn: s.jwt.ExpiresIn()}
 		return nil
 	})
 	if err != nil {

@@ -3,22 +3,22 @@ package httpx
 import (
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/ahmadAsaad2001-7/tibi/internal/platform/httpx/trace"
 )
 
 // Trace assigns or reuses a trace ID, sets the X-Trace-Id header,
 // and stores the ID in the context.
 func Trace(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id := trace.FromHeader(r.Header.Get("traceparent"))
+		id := FromHeader(r.Header.Get("traceparent"))
 		if id == "" {
-			id = uuid.NewString()[:32] // 32 hex chars, W3C-shaped
+			id = strings.ReplaceAll(uuid.NewString(), "-", "")
 		}
 		w.Header().Set("X-Trace-Id", id)
-		next.ServeHTTP(w, r.WithContext(trace.WithID(r.Context(), id)))
+		next.ServeHTTP(w, r.WithContext(WithID(r.Context(), id)))
 	})
 }
 
@@ -30,7 +30,7 @@ func Recover(next http.Handler) http.Handler {
 				slog.Error("panic",
 					"panic", p,
 					"path", r.URL.Path,
-					"trace_id", trace.ID(r.Context()),
+					"trace_id", ID(r.Context()),
 				)
 				Error(w, r, Internal(nil))
 			}
@@ -50,7 +50,7 @@ func RequestLog(next http.Handler) http.Handler {
 			"path", r.URL.Path,
 			"status", rw.status,
 			"duration_ms", time.Since(start).Milliseconds(),
-			"trace_id", trace.ID(r.Context()),
+			"trace_id", ID(r.Context()),
 		)
 	})
 }

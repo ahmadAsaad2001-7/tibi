@@ -7,12 +7,13 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/ahmadAsaad2001-7/tibi/internal/identity/register/db"
-	"github.com/ahmadAsaad2001-7/tibi/internal/identity/user"
-	"github.com/ahmadAsaad2001-7/tibi/internal/patients/contracts"
-	"github.com/ahmadAsaad2001-7/tibi/internal/platform/auth"
-	"github.com/ahmadAsaad2001-7/tibi/internal/platform/database"
-	"github.com/ahmadAsaad2001-7/tibi/internal/platform/httpx"
+	"tibi/internal/doctors/contracts"
+	"tibi/internal/identity/register/db"
+	"tibi/internal/identity/user"
+	patients "tibi/internal/patients/contracts"
+	"tibi/internal/platform/auth"
+	"tibi/internal/platform/database"
+	"tibi/internal/platform/httpx"
 )
 
 type Service struct {
@@ -20,11 +21,12 @@ type Service struct {
 	hasher   *auth.PasswordHasher
 	jwt      *auth.TokenIssuer
 	refresh  *auth.RefreshStore
-	patients contracts.API
+	patients patients.API
+	doctors  contracts.API
 }
 
-func NewService(db *database.DB, hasher *auth.PasswordHasher, jwt *auth.TokenIssuer, refresh *auth.RefreshStore, patients contracts.API) *Service {
-	return &Service{db: db, hasher: hasher, jwt: jwt, refresh: refresh, patients: patients}
+func NewService(db *database.DB, hasher *auth.PasswordHasher, jwt *auth.TokenIssuer, refresh *auth.RefreshStore, patientsAPI patients.API, doctorsAPI contracts.API) *Service {
+	return &Service{db: db, hasher: hasher, jwt: jwt, refresh: refresh, patients: patientsAPI, doctors: doctorsAPI}
 }
 
 type Response struct {
@@ -66,19 +68,26 @@ func (s *Service) Execute(ctx context.Context, cmd Command) (*Response, error) {
 		row, err := q.InsertUser(ctx, db.InsertUserParams{
 			Email:        cmd.Email,
 			PasswordHash: hash,
-			Role:         user.Role(role),
+			Role:         role,
 		})
 		if err != nil {
 			return httpx.Internal(err)
 		}
 
 		// Cross-module call. Shares this transaction.
-		// Patient path only; doctor profile creation is slice 2.
-		if role == user.RolePatient {
-			if _, err := s.patients.CreatePatientProfile(ctx, contracts.CreatePatientProfileInput{
+		switch role {
+		case user.RolePatient:
+			if _, err := s.patients.CreatePatientProfile(ctx, patients.CreatePatientProfileInput{
 				UserID:      row.ID,
 				FullName:    cmd.FullName,
 				PhoneNumber: cmd.PhoneNumber,
+			}); err != nil {
+				return err
+			}
+		case user.RolePendingDoctor:
+			if _, err := s.doctors.CreateDoctorProfile(ctx, contracts.CreateDoctorProfileInput{
+				UserID:   row.ID,
+				FullName: cmd.FullName,
 			}); err != nil {
 				return err
 			}
@@ -96,7 +105,7 @@ func (s *Service) Execute(ctx context.Context, cmd Command) (*Response, error) {
 		resp = &Response{
 			AccessToken:  access,
 			RefreshToken: refresh,
-			ExpiresIn:    900,
+			ExpiresIn:    s.jwt.ExpiresIn(),
 		}
 		resp.User.ID = row.ID
 		resp.User.Email = cmd.Email
