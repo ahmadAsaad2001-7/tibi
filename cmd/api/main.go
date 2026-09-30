@@ -19,14 +19,20 @@ import (
 	"tibi/internal/admin/listvotes"
 	"tibi/internal/admin/proposevote"
 
+	"tibi/internal/doctors/addexception"
 	doctorsapi "tibi/internal/doctors/api"
 	"tibi/internal/doctors/contracts"
+	"tibi/internal/doctors/deleteexception"
+	"tibi/internal/doctors/getschedule"
+	"tibi/internal/doctors/listavailabilitydays"
+	"tibi/internal/doctors/listslots"
 	"tibi/internal/doctors/listspecialties"
+	"tibi/internal/doctors/putschedule"
 	"tibi/internal/doctors/submitforverification"
 	"tibi/internal/doctors/updateprofile"
+
 	identityapi "tibi/internal/identity/api"
 	identitycontracts "tibi/internal/identity/contracts"
-
 	"tibi/internal/identity/login"
 	"tibi/internal/identity/logout"
 	"tibi/internal/identity/me"
@@ -77,13 +83,23 @@ func run() error {
 	issuer := auth.NewTokenIssuer(cfg.JWTSecret, cfg.JWTAccessTTL)
 	refreshStore := auth.NewRefreshStore(db, cfg.JWTRefreshTTL)
 
+	// Core APIs
 	doctorsAPI := doctorsapi.New(db)
 	identityAPI := identityapi.New(db)
 	patientsAPI := patientscreate.NewService(db)
 
+	// Doctor Profile services
 	specialtiesSvc := listspecialties.NewService(db)
 	updateProfileSvc := updateprofile.NewService(db)
 	submitVerifSvc := submitforverification.NewService(db)
+
+	// Schedule & Availability services (NEW)
+	putScheduleSvc := putschedule.NewService(db)
+	getScheduleSvc := getschedule.NewService(db)
+	addExceptionSvc := addexception.NewService(db)
+	delExceptionSvc := deleteexception.NewService(db)
+	availDaysSvc := listavailabilitydays.NewService(db)
+	slotsSvc := listslots.NewService(db)
 
 	// Admin module services
 	proposeVoteSvc := proposevote.NewService(db)
@@ -144,6 +160,19 @@ func run() error {
 				r.Patch("/doctor", updateprofile.NewHandler(updateProfileSvc).ServeHTTP)
 				r.Post("/doctor/submit-for-verification", submitforverification.NewHandler(submitVerifSvc).ServeHTTP)
 			})
+		})
+
+		// Schedule & Availability routes (NEW)
+		r.Get("/doctor-availability/{doctorProfileId}/days", listavailabilitydays.NewHandler(availDaysSvc).ServeHTTP)
+		r.Get("/doctor-availability/{doctorProfileId}/hours", listslots.NewHandler(slotsSvc).ServeHTTP)
+
+		r.Route("/doctor-schedule", func(r chi.Router) {
+			r.Use(auth.RequireAuth(issuer))
+			r.Use(auth.RequireRole(contracts.RoleDoctor, contracts.RolePendingDoctor))
+			r.Get("/", getschedule.NewHandler(getScheduleSvc).ServeHTTP)
+			r.Put("/", putschedule.NewHandler(putScheduleSvc).ServeHTTP)
+			r.Post("/exceptions", addexception.NewHandler(addExceptionSvc).ServeHTTP)
+			r.Delete("/exceptions/{id}", deleteexception.NewHandler(delExceptionSvc).ServeHTTP)
 		})
 
 		// Admin module routes
