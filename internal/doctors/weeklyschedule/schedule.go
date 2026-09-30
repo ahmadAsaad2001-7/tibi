@@ -3,7 +3,6 @@ package weeklyschedule
 import (
 	"fmt"
 	"sort"
-	"time"
 
 	"tibi/internal/doctors/doctorprofile"
 )
@@ -33,6 +32,12 @@ func New(doctorProfileID int64, blocks []Block) *Schedule {
 func (s *Schedule) Validate() error {
 	byDay := map[int][]Block{}
 	for _, b := range s.Blocks {
+		if b.DayOfWeek < 0 || b.DayOfWeek > 6 {
+			return fmt.Errorf("day_of_week must be between 0 and 6")
+		}
+		if b.IsActive && (b.SlotDurationMinutes < 5 || b.SlotDurationMinutes > 240) {
+			return fmt.Errorf("slot duration must be between 5 and 240 minutes")
+		}
 		if !b.IsActive {
 			continue
 		}
@@ -71,6 +76,3 @@ func (s *Schedule) ActiveBlocksFor(dayOfWeek int) []Block {
 	})
 	return out
 }
-
-// Used only to satisfy the "time" import for future use.
-var _ = time.Now

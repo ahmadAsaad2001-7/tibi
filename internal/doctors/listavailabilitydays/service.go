@@ -85,7 +85,7 @@ func (s *Service) Execute(ctx context.Context, doctorProfileID int64, from, to t
 		})
 	}
 
-	resp := &Response{}
+	resp := &Response{Days: []DayOut{}}
 	for d := from; !d.After(to); d = d.AddDate(0, 0, 1) {
 		key := d.Format("2006-01-02")
 		slots := availability.ForDate(d, blocks, exceptionsByDate[key])

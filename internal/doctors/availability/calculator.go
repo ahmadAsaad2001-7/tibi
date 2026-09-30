@@ -21,7 +21,7 @@ type Slot struct {
 func ForDate(date time.Time, blocks []weeklyschedule.Block, exceptions []scheduleexception.Exception) []Slot {
 	dayOfWeek := int(date.Weekday())
 
-	var slots []Slot
+	slots := make([]Slot, 0)
 	for _, b := range blocks {
 		if !b.IsActive || b.DayOfWeek != dayOfWeek {
 			continue

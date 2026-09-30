@@ -104,3 +104,51 @@ sql:
         package: "db"
         out: "internal/admin/listpendingdoctors/db"
         sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema: "migrations/"
+    queries: "internal/doctors/putschedule/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctors/putschedule/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema: "migrations/"
+    queries: "internal/doctors/listavailabilitydays/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctors/listavailabilitydays/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema: "migrations/"
+    queries: "internal/doctors/listslots/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctors/listslots/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema: "migrations/"
+    queries: "internal/doctors/getschedule/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctors/getschedule/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema: "migrations/"
+    queries: "internal/doctors/addexception/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctors/addexception/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema: "migrations/"
+    queries: "internal/doctors/deleteexception/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctors/deleteexception/db"
+        sql_package: "pgx/v5"
