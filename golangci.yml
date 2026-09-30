@@ -49,6 +49,18 @@ linters-settings:
           - github.com/jackc/pgx/v5
           - github.com/go-playground/validator/v10
 
+      admin:
+        files: ["**/internal/admin/**"]
+        allow:
+          - $gostd
+          - tibi/internal/admin
+          - tibi/internal/doctors/contracts
+          - tibi/internal/identity/contracts
+          - tibi/internal/platform
+          - github.com/jackc/pgx/v5
+          - github.com/go-chi/chi/v5
+          - github.com/go-playground/validator/v10
+
       platform:
         files: ["**/internal/platform/**"]
         # Platform imports no module. This is enforced by absence, not by allow.
@@ -56,6 +68,7 @@ linters-settings:
           - tibi/internal/identity
           - tibi/internal/patients
           - tibi/internal/doctors
+          - tibi/internal/admin
 
 
 

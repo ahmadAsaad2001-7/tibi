@@ -72,3 +72,35 @@ sql:
         package: "db"
         out: "internal/doctors/submitforverification/db"
         sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema: "migrations/"
+    queries: "internal/admin/proposevote/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/admin/proposevote/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema: "migrations/"
+    queries: "internal/admin/castvote/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/admin/castvote/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema: "migrations/"
+    queries: "internal/admin/listvotes/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/admin/listvotes/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema: "migrations/"
+    queries: "internal/admin/listpendingdoctors/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/admin/listpendingdoctors/db"
+        sql_package: "pgx/v5"

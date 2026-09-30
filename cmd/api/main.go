@@ -13,16 +13,26 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"tibi/internal/admin/castvote"
+	"tibi/internal/admin/expirevotes"
+	"tibi/internal/admin/listpendingdoctors"
+	"tibi/internal/admin/listvotes"
+	"tibi/internal/admin/proposevote"
+
+	doctorsapi "tibi/internal/doctors/api"
 	"tibi/internal/doctors/contracts"
-	doctorscreate "tibi/internal/doctors/createprofile"
 	"tibi/internal/doctors/listspecialties"
 	"tibi/internal/doctors/submitforverification"
 	"tibi/internal/doctors/updateprofile"
+	identityapi "tibi/internal/identity/api"
+	identitycontracts "tibi/internal/identity/contracts"
+
 	"tibi/internal/identity/login"
 	"tibi/internal/identity/logout"
 	"tibi/internal/identity/me"
 	"tibi/internal/identity/refresh"
 	"tibi/internal/identity/register"
+
 	patientscreate "tibi/internal/patients/createprofile"
 	"tibi/internal/platform/auth"
 	"tibi/internal/platform/config"
@@ -46,7 +56,6 @@ func run() error {
 		return err
 	}
 
-	// Fail-closed on APP_ENV mismatch.
 	if cfg.IsProduction() && cfg.JWTSecret == "replace-me-with-32-bytes-of-random" {
 		return errors.New("JWT_SECRET not set in production")
 	}
@@ -68,13 +77,25 @@ func run() error {
 	issuer := auth.NewTokenIssuer(cfg.JWTSecret, cfg.JWTAccessTTL)
 	refreshStore := auth.NewRefreshStore(db, cfg.JWTRefreshTTL)
 
-	// Module services.
+	doctorsAPI := doctorsapi.New(db)
+	identityAPI := identityapi.New(db)
 	patientsAPI := patientscreate.NewService(db)
-	doctorsAPI := doctorscreate.NewService(db)
+
 	specialtiesSvc := listspecialties.NewService(db)
 	updateProfileSvc := updateprofile.NewService(db)
 	submitVerifSvc := submitforverification.NewService(db)
 
+	// Admin module services
+	proposeVoteSvc := proposevote.NewService(db)
+	castVoteSvc := castvote.NewService(db, doctorsAPI, identityAPI)
+	listVotesSvc := listvotes.NewService(db)
+	listPendingSvc := listpendingdoctors.NewService(db)
+	expireWorker := expirevotes.NewService(db)
+
+	// Start background worker for expiring votes
+	go expireWorker.Run(ctx)
+
+	// Identity services
 	registerSvc := register.NewService(db, hasher, issuer, refreshStore, patientsAPI, doctorsAPI)
 	loginSvc := login.NewService(db, hasher, issuer, refreshStore)
 	refreshSvc := refresh.NewService(db, issuer, refreshStore)
@@ -123,6 +144,20 @@ func run() error {
 				r.Patch("/doctor", updateprofile.NewHandler(updateProfileSvc).ServeHTTP)
 				r.Post("/doctor/submit-for-verification", submitforverification.NewHandler(submitVerifSvc).ServeHTTP)
 			})
+		})
+
+		// Admin module routes
+		r.Route("/admin", func(r chi.Router) {
+			r.Use(auth.RequireAuth(issuer))
+			r.Use(auth.RequireRole(identitycontracts.RoleAdmin))
+
+			proposeH := proposevote.NewHandler(proposeVoteSvc)
+			r.Post("/doctors/{userId}/propose-verification", proposeH.ServeVerify)
+			r.Post("/doctors/{userId}/propose-unverification", proposeH.ServeUnverify)
+
+			r.Get("/votes", listvotes.NewHandler(listVotesSvc).ServeHTTP)
+			r.Post("/votes/{voteId}/cast", castvote.NewHandler(castVoteSvc).ServeHTTP)
+			r.Get("/doctors/pending", listpendingdoctors.NewHandler(listPendingSvc).ServeHTTP)
 		})
 	})
 
