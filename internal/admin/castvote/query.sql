@@ -19,7 +19,7 @@ SET votes_for     = $2,
     status        = $4,
     resolved_at   = $5,
     updated_at    = now()
-WHERE id = $1 AND xmin::text = $6;
+WHERE id = $1 AND admin_votes.xmin::text = $6;
 
 -- name: InsertVoteParticipant :exec
 INSERT INTO admin_vote_participants (admin_vote_id, admin_user_id, vote, voted_at)

@@ -67,6 +67,7 @@ func (s *Service) Execute(ctx context.Context, userID int64, cmd Command) (*Resp
 	err = s.db.WithTx(ctx, func(ctx context.Context) error {
 		q := db.New(s.db.Querier(ctx))
 
+		// 1. Verify user is a patient
 		patientID, err := q.GetPatientProfileForUser(ctx, userID)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
@@ -75,35 +76,42 @@ func (s *Service) Execute(ctx context.Context, userID int64, cmd Command) (*Resp
 			return httpx.Internal(err)
 		}
 
-		// Lazy cleanup of expired Pendings on this slot, then check.
-		if err := q.CancelStalePending(ctx, db.CancelStalePendingParams{
-			DoctorProfileID: cmd.DoctorProfileID,
-			ScheduledAt:     scheduledAt,
-		}); err != nil {
-			return httpx.Internal(err)
+		// 2. Ensure session FIRST to get the sessionID
+		sessionID, err := s.doctors.EnsureSession(ctx, cmd.DoctorProfileID, scheduledAt, slotInfo)
+		if err != nil {
+			return err
 		}
+
+		// 3. Lock the session row in the DB to prevent concurrent double-bookings
 		if _, err := q.LockSession(ctx, sessionID); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return httpx.Internal(errors.New("session disappeared after EnsureSession"))
 			}
 			return httpx.Internal(err)
 		}
-		n, err := q.CountActiveSlot(ctx, db.CountActiveSlotParams{
+
+		// 4. Lazy cleanup of expired Pendings on this slot
+		if err := q.CancelStalePending(ctx, db.CancelStalePendingParams{
+			DoctorProfileID: cmd.DoctorProfileID,
+			ScheduledAt:     scheduledAt,
+		}); err != nil {
+			return httpx.Internal(err)
+		}
+
+		// 5. Check if slot is still available after cleanup
+		countRow, err := q.CountActiveSlot(ctx, db.CountActiveSlotParams{
 			DoctorProfileID: cmd.DoctorProfileID,
 			ScheduledAt:     scheduledAt,
 		})
 		if err != nil {
 			return httpx.Internal(err)
 		}
-		if n > 0 {
+		// sqlc generates 'N' for 'AS n' in COUNT(*)::bigint AS n
+		if countRow.N > 0 {
 			return httpx.Conflict("slot is not available")
 		}
 
-		sessionID, err := s.doctors.EnsureSession(ctx, cmd.DoctorProfileID, scheduledAt, slotInfo)
-		if err != nil {
-			return err
-		}
-
+		// 6. Insert the new consultation
 		row, err := q.InsertConsultation(ctx, db.InsertConsultationParams{
 			PatientProfileID: patientID,
 			DoctorProfileID:  cmd.DoctorProfileID,
@@ -117,7 +125,7 @@ func (s *Service) Execute(ctx context.Context, userID int64, cmd Command) (*Resp
 			return httpx.Internal(err)
 		}
 
-		// Cross-module write: create the pending payment in the same tx.
+		// 7. Cross-module write: create the pending payment in the same tx
 		payOut, err := s.payments.CreatePendingPayment(ctx, paymentscontracts.CreatePendingPaymentInput{
 			PatientProfileID: patientID,
 			DoctorProfileID:  cmd.DoctorProfileID,
@@ -130,6 +138,7 @@ func (s *Service) Execute(ctx context.Context, userID int64, cmd Command) (*Resp
 			return err
 		}
 
+		// 8. Build response
 		resp = &Response{}
 		resp.Consultation.ID = row.ID
 		resp.Consultation.Status = string(consultation.StatusPending)
@@ -141,10 +150,13 @@ func (s *Service) Execute(ctx context.Context, userID int64, cmd Command) (*Resp
 		resp.Payment.Currency = feeCurrency
 		resp.Payment.Status = "Pending"
 		resp.Payment.CheckoutURL = payOut.CheckoutURL
+
 		return nil
 	})
+
 	if err != nil {
 		return nil, err
 	}
+
 	return resp, nil
 }

@@ -12,7 +12,7 @@ UPDATE doctors_profiles
 SET verification_status = $2,
     submitted_at        = $3,
     updated_at          = now()
-WHERE id = $1 AND xmin::text = $4;
+WHERE id = $1 AND doctors_profiles.xmin::text = $4;
 
 -- name: CountSpecialties :one
 SELECT COUNT(*)::bigint FROM doctors_profile_specialties WHERE doctor_profile_id = $1;
