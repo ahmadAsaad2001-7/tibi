@@ -30,7 +30,7 @@ INSERT INTO consultations_consultations (
     scheduled_at, duration_minutes, is_urgent, notes
 ) VALUES ($1, $2, $3, $4, $5, $6, $7)
     RETURNING id, created_at;
-
+SELECT id FROM doctors_clinic_sessions WHERE id = $1 FOR UPDATE;
 -- name: GetConsultationForUpdate :one
 SELECT id, patient_profile_id, doctor_profile_id, scheduled_at,
        duration_minutes, status, is_urgent, notes, created_at, updated_at,

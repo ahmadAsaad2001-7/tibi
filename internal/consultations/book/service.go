@@ -82,6 +82,12 @@ func (s *Service) Execute(ctx context.Context, userID int64, cmd Command) (*Resp
 		}); err != nil {
 			return httpx.Internal(err)
 		}
+		if _, err := q.LockSession(ctx, sessionID); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return httpx.Internal(errors.New("session disappeared after EnsureSession"))
+			}
+			return httpx.Internal(err)
+		}
 		n, err := q.CountActiveSlot(ctx, db.CountActiveSlotParams{
 			DoctorProfileID: cmd.DoctorProfileID,
 			ScheduledAt:     scheduledAt,
