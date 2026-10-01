@@ -19,17 +19,35 @@ import (
 	"tibi/internal/admin/listvotes"
 	"tibi/internal/admin/proposevote"
 
+	"tibi/internal/consultations/book"
+	"tibi/internal/consultations/cancel"
+	"tibi/internal/consultations/getbyid"
+	"tibi/internal/consultations/listmy"
+
 	"tibi/internal/doctors/addexception"
 	doctorsapi "tibi/internal/doctors/api"
 	"tibi/internal/doctors/contracts"
+	"tibi/internal/doctors/createsession"
 	"tibi/internal/doctors/deleteexception"
+	"tibi/internal/doctors/getdoctor"
 	"tibi/internal/doctors/getschedule"
 	"tibi/internal/doctors/listavailabilitydays"
 	"tibi/internal/doctors/listslots"
 	"tibi/internal/doctors/listspecialties"
 	"tibi/internal/doctors/putschedule"
+	"tibi/internal/doctors/search"
 	"tibi/internal/doctors/submitforverification"
 	"tibi/internal/doctors/updateprofile"
+
+	// ⚠️ New Doctor Posts imports
+	"tibi/internal/doctorposts/createpost"
+	"tibi/internal/doctorposts/deletepost"
+	"tibi/internal/doctorposts/getpost"
+	"tibi/internal/doctorposts/listbydoctor"
+	"tibi/internal/doctorposts/listfeed"
+	"tibi/internal/doctorposts/publishpost"
+	"tibi/internal/doctorposts/unpublishpost"
+	"tibi/internal/doctorposts/updatepost"
 
 	identityapi "tibi/internal/identity/api"
 	identitycontracts "tibi/internal/identity/contracts"
@@ -40,6 +58,10 @@ import (
 	"tibi/internal/identity/register"
 
 	patientscreate "tibi/internal/patients/createprofile"
+
+	paymentsapi "tibi/internal/payments/api"
+	"tibi/internal/payments/createpending"
+
 	"tibi/internal/platform/auth"
 	"tibi/internal/platform/config"
 	"tibi/internal/platform/database"
@@ -84,16 +106,31 @@ func run() error {
 	refreshStore := auth.NewRefreshStore(db, cfg.JWTRefreshTTL)
 
 	// Core APIs
-	doctorsAPI := doctorsapi.New(db)
 	identityAPI := identityapi.New(db)
-	patientsAPI := patientscreate.NewService(db)
+
+	// Doctors
+	createSessionSvc := createsession.NewService(db)
+	createProfileSvc := patientscreate.NewService(db)
+	doctorsAPI := doctorsapi.New(db, createSessionSvc)
+
+	// Payments
+	createPendingSvc := createpending.NewService(db)
+	paymentsAPI := paymentsapi.New(createPendingSvc)
+
+	// Consultations
+	bookSvc := book.NewService(db, doctorsAPI, paymentsAPI)
+	cancelSvc := cancel.NewService(db)
+	listMySvc := listmy.NewService(db)
+	getByIDSvc := getbyid.NewService(db)
 
 	// Doctor Profile services
 	specialtiesSvc := listspecialties.NewService(db)
 	updateProfileSvc := updateprofile.NewService(db)
 	submitVerifSvc := submitforverification.NewService(db)
+	searchSvc := search.NewService(db)
+	getDoctorSvc := getdoctor.NewService(db)
 
-	// Schedule & Availability services (NEW)
+	// Schedule & Availability services
 	putScheduleSvc := putschedule.NewService(db)
 	getScheduleSvc := getschedule.NewService(db)
 	addExceptionSvc := addexception.NewService(db)
@@ -108,11 +145,21 @@ func run() error {
 	listPendingSvc := listpendingdoctors.NewService(db)
 	expireWorker := expirevotes.NewService(db)
 
+	// ⚠️ New: Doctor Posts services
+	createPostSvc := createpost.NewService(db, doctorsAPI)
+	updatePostSvc := updatepost.NewService(db)
+	deletePostSvc := deletepost.NewService(db)
+	publishPostSvc := publishpost.NewService(db)
+	unpublishPostSvc := unpublishpost.NewService(db)
+	listFeedSvc := listfeed.NewService(db)
+	getPostSvc := getpost.NewService(db)
+	listByDoctorSvc := listbydoctor.NewService(db)
+
 	// Start background worker for expiring votes
 	go expireWorker.Run(ctx)
 
 	// Identity services
-	registerSvc := register.NewService(db, hasher, issuer, refreshStore, patientsAPI, doctorsAPI)
+	registerSvc := register.NewService(db, hasher, issuer, refreshStore, createProfileSvc, doctorsAPI)
 	loginSvc := login.NewService(db, hasher, issuer, refreshStore)
 	refreshSvc := refresh.NewService(db, issuer, refreshStore)
 	logoutSvc := logout.NewService(refreshStore)
@@ -153,6 +200,13 @@ func run() error {
 
 		r.Get("/specialties", listspecialties.NewHandler(specialtiesSvc).ServeHTTP)
 
+		// Public doctor search and get
+		r.Get("/doctors", search.NewHandler(searchSvc).ServeHTTP)
+		r.Get("/doctors/{id}", getdoctor.NewHandler(getDoctorSvc).ServeHTTP)
+
+		// ⚠️ New: Public doctor posts feed
+		r.Get("/doctors/{doctorId}/posts", listbydoctor.NewHandler(listByDoctorSvc).ServeHTTP)
+
 		r.Route("/profile", func(r chi.Router) {
 			r.Group(func(r chi.Router) {
 				r.Use(auth.RequireAuth(issuer))
@@ -162,7 +216,7 @@ func run() error {
 			})
 		})
 
-		// Schedule & Availability routes (NEW)
+		// Schedule & Availability routes
 		r.Get("/doctor-availability/{doctorProfileId}/days", listavailabilitydays.NewHandler(availDaysSvc).ServeHTTP)
 		r.Get("/doctor-availability/{doctorProfileId}/hours", listslots.NewHandler(slotsSvc).ServeHTTP)
 
@@ -173,6 +227,38 @@ func run() error {
 			r.Put("/", putschedule.NewHandler(putScheduleSvc).ServeHTTP)
 			r.Post("/exceptions", addexception.NewHandler(addExceptionSvc).ServeHTTP)
 			r.Delete("/exceptions/{id}", deleteexception.NewHandler(delExceptionSvc).ServeHTTP)
+		})
+
+		// ⚠️ New: Doctor Posts routes
+		r.Route("/doctor-posts", func(r chi.Router) {
+			// Public read access
+			r.Get("/", listfeed.NewHandler(listFeedSvc).ServeHTTP)
+			r.Get("/{id}", getpost.NewHandler(getPostSvc).ServeHTTP)
+
+			// Protected write access (Doctors only)
+			r.Group(func(r chi.Router) {
+				r.Use(auth.RequireAuth(issuer))
+				r.Use(auth.RequireRole(contracts.RoleDoctor))
+				r.Post("/", createpost.NewHandler(createPostSvc).ServeHTTP)
+				r.Patch("/{id}", updatepost.NewHandler(updatePostSvc).ServeHTTP)
+				r.Delete("/{id}", deletepost.NewHandler(deletePostSvc).ServeHTTP)
+				r.Post("/{id}/publish", publishpost.NewHandler(publishPostSvc).ServeHTTP)
+				r.Post("/{id}/unpublish", unpublishpost.NewHandler(unpublishPostSvc).ServeHTTP)
+			})
+		})
+
+		// Consultations routes
+		r.Route("/consultations", func(r chi.Router) {
+			r.Use(auth.RequireAuth(issuer))
+
+			r.Group(func(r chi.Router) {
+				r.Use(auth.RequireRole(identitycontracts.RolePatient))
+				r.Post("/", book.NewHandler(bookSvc).ServeHTTP)
+			})
+
+			r.Get("/", listmy.NewHandler(listMySvc).ServeHTTP)
+			r.Get("/{id}", getbyid.NewHandler(getByIDSvc).ServeHTTP)
+			r.Post("/{id}/cancel", cancel.NewHandler(cancelSvc).ServeHTTP)
 		})
 
 		// Admin module routes

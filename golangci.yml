@@ -48,6 +48,7 @@ linters-settings:
           - tibi/internal/platform
           - github.com/jackc/pgx/v5
           - github.com/go-playground/validator/v10
+          - github.com/go-chi/chi/v5
 
       admin:
         files: ["**/internal/admin/**"]
@@ -69,6 +70,10 @@ linters-settings:
           - tibi/internal/patients
           - tibi/internal/doctors
           - tibi/internal/admin
+          - tibi/internal/consultations
+          - tibi/internal/payments
+          - tibi/internal/doctorposts
+          - tibi/internal/content
 
 
 

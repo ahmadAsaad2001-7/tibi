@@ -2,9 +2,9 @@ package api
 
 import (
 	"context"
-	"tibi/internal/doctors/createprofile/db"
-
 	"tibi/internal/doctors/contracts"
+	"tibi/internal/doctors/createprofile/db"
+	"tibi/internal/doctors/createsession"
 	"tibi/internal/platform/database"
 	"tibi/internal/platform/httpx"
 )
@@ -12,10 +12,13 @@ import (
 // API implements contracts.API for the Doctors module.
 // This is the only place the Doctors module advertises outward.
 type API struct {
-	db *database.DB
+	db       *database.DB
+	sessions *createsession.Service
 }
 
-func New(db *database.DB) *API { return &API{db: db} }
+func New(db *database.DB, sessions *createsession.Service) *API {
+	return &API{db: db, sessions: sessions}
+}
 
 var _ contracts.API = (*API)(nil)
 

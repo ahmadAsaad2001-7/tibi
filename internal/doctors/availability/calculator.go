@@ -16,9 +16,18 @@ type Slot struct {
 // ForDate computes the open slots on a given date, given the doctor's
 // active weekly blocks for that day-of-week and any exceptions on that date.
 //
-// Slice 4 does not subtract existing bookings. The signature takes no
-// bookings parameter; slice 5 will extend Input when Consultations exists.
-func ForDate(date time.Time, blocks []weeklyschedule.Block, exceptions []scheduleexception.Exception) []Slot {
+// bookedSlots are wall-clock starts already taken. Those times are omitted.
+func ForDate(
+	date time.Time,
+	blocks []weeklyschedule.Block,
+	exceptions []scheduleexception.Exception,
+	bookedSlots []doctorprofile.TimeOfDay,
+) []Slot {
+
+	booked := make(map[int]bool, len(bookedSlots))
+	for _, b := range bookedSlots {
+		booked[b.Minutes()] = true
+	}
 	dayOfWeek := int(date.Weekday())
 
 	slots := make([]Slot, 0)
@@ -28,7 +37,10 @@ func ForDate(date time.Time, blocks []weeklyschedule.Block, exceptions []schedul
 		}
 		dur := time.Duration(b.SlotDurationMinutes) * time.Minute
 
-		for cursor := b.StartTime; cursor.Minutes()+b.SlotDurationMinutes <= b.EndTime.Minutes(); {
+		for cursor := b.StartTime; cursor.Minutes()+b.SlotDurationMinutes <= b.EndTime.Minutes(); cursor = addMinutes(cursor, b.SlotDurationMinutes) {
+			if booked[cursor.Minutes()] {
+				continue
+			}
 			slotEnd := addMinutes(cursor, b.SlotDurationMinutes)
 
 			blocked := false
@@ -38,11 +50,10 @@ func ForDate(date time.Time, blocks []weeklyschedule.Block, exceptions []schedul
 					break
 				}
 			}
-			if !blocked {
-				slots = append(slots, Slot{Start: cursor, Duration: dur})
+			if blocked {
+				continue
 			}
-
-			cursor = slotEnd
+			slots = append(slots, Slot{Start: cursor, Duration: dur})
 		}
 	}
 	return slots

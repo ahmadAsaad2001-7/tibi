@@ -85,10 +85,21 @@ func (s *Service) Execute(ctx context.Context, doctorProfileID int64, from, to t
 		})
 	}
 
+	bookedRows, err := q.BookedInRange(ctx, doctorProfileID, from, to.AddDate(0, 0, 1))
+	if err != nil {
+		return nil, httpx.Internal(err)
+	}
+	bookedByDate := map[string][]doctorprofile.TimeOfDay{}
+	for _, at := range bookedRows {
+		u := at.UTC()
+		key := u.Format("2006-01-02")
+		bookedByDate[key] = append(bookedByDate[key], doctorprofile.TimeOfDay{Hour: u.Hour(), Minute: u.Minute()})
+	}
+
 	resp := &Response{Days: []DayOut{}}
 	for d := from; !d.After(to); d = d.AddDate(0, 0, 1) {
 		key := d.Format("2006-01-02")
-		slots := availability.ForDate(d, blocks, exceptionsByDate[key])
+		slots := availability.ForDate(d, blocks, exceptionsByDate[key], bookedByDate[key])
 		if len(slots) == 0 {
 			continue
 		}
