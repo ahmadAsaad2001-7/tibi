@@ -74,6 +74,7 @@ linters-settings:
           - tibi/internal/doctorposts
           - tibi/internal/content
           - tibi/internal/queue
+          - tibi/internal/files
 
       payments:
         files: ["**/internal/payments/**"]
@@ -107,6 +108,16 @@ linters-settings:
           - github.com/jackc/pgx/v5
           - github.com/go-chi/chi/v5
           - github.com/go-playground/validator/v10
+
+      files:
+        files: ["**/internal/files/**"]
+        allow:
+          - $gostd
+          - tibi/internal/files
+          - tibi/internal/platform
+          - tibi/internal/storage
+          - github.com/jackc/pgx/v5
+          - github.com/go-chi/chi/v5
 
 
 

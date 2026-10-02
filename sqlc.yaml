@@ -539,3 +539,72 @@ sql:
         out: "internal/queue/wschecker/db"
         sql_package: "pgx/v5"
         emit_pointers_for_null_types: true
+
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/files/getmetadata/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/files/getmetadata/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+        overrides:
+          - db_type: "file_scope"
+            go_type:
+              import: "tibi/internal/files"
+              package: "file"
+              type: "Scope"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/files/upload/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/files/upload/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+        overrides:
+          - db_type: "file_scope"
+            go_type:
+              import: "tibi/internal/files"
+              package: "file"
+              type: "Scope"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/files/get/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/files/get/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+        overrides:
+          - db_type: "file_scope"
+            go_type:
+              import: "tibi/internal/files"
+              package: "file"
+              type: "Scope"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/files/delete/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/files/delete/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+        overrides:
+          - db_type: "file_scope"
+            go_type:
+              import: "tibi/internal/files"
+              package: "file"
+              type: "Scope"

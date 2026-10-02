@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/caarlos0/env/v11"
@@ -11,21 +12,38 @@ import (
 )
 
 type Config struct {
-	Env           string        `env:"APP_ENV" envDefault:"development"`
-	HTTPPort      string        `env:"HTTP_PORT" envDefault:"8080"`
+	Env           string        `env:"APP_ENV"          envDefault:"development"`
+	HTTPPort      string        `env:"HTTP_PORT"        envDefault:"8080"`
 	DatabaseURL   string        `env:"DATABASE_URL,required"`
 	JWTSecret     string        `env:"JWT_SECRET,required"`
-	JWTAccessTTL  time.Duration `env:"JWT_ACCESS_TTL" envDefault:"15m"`
-	JWTRefreshTTL time.Duration `env:"JWT_REFRESH_TTL" envDefault:"720h"`
+	JWTAccessTTL  time.Duration `env:"JWT_ACCESS_TTL"   envDefault:"15m"`
+	JWTRefreshTTL time.Duration `env:"JWT_REFRESH_TTL"  envDefault:"720h"`
 
-	// Kashier payment provider (Slice 8b/8c).
+	// Kashier payment provider
 	KashierAPIKey        string `env:"KASHIER_API_KEY,required"`
-	KashierAPIURL        string `env:"KASHIER_API_URL" envDefault:"https://api.kashier.io"`
+	KashierAPIURL        string `env:"KASHIER_API_URL"        envDefault:"https://api.kashier.io"`
 	KashierWebhookSecret string `env:"KASHIER_WEBHOOK_SECRET,required"`
 
 	// WSOriginPatterns is a comma-separated list of allowed WebSocket origins.
 	// Use "*" only in development. Production should list explicit hosts.
 	WSOriginPatterns []string `env:"WS_ORIGIN_PATTERNS" envSeparator:"," envDefault:"*"`
+
+	// Storage driver: "local" (dev only) or "s3".
+	StorageDriver string `env:"STORAGE_DRIVER" envDefault:"local"`
+
+	// LocalFS driver settings.
+	StorageLocalRoot    string `env:"STORAGE_LOCAL_ROOT"     envDefault:"./data/files"`
+	StorageLocalBaseURL string `env:"STORAGE_LOCAL_BASE_URL" envDefault:"http://localhost:8080/files"`
+	StorageLocalSignKey string `env:"STORAGE_LOCAL_SIGN_KEY" envDefault:"dev-sign-key-change-me"`
+
+	// S3 driver settings.
+	S3Endpoint  string `env:"S3_ENDPOINT"`
+	S3AccessKey string `env:"S3_ACCESS_KEY"`
+	S3SecretKey string `env:"S3_SECRET_KEY"`
+	S3Bucket    string `env:"S3_BUCKET"    envDefault:"medical-files"`
+	S3UseSSL    bool   `env:"S3_USE_SSL"   envDefault:"true"`
+	S3Region    string `env:"S3_REGION"`
+	S3PublicURL string `env:"S3_PUBLIC_URL"`
 }
 
 // Load reads config from the process environment.
@@ -52,3 +70,36 @@ func Load() (*Config, error) {
 func (c *Config) IsProduction() bool  { return c.Env == "production" }
 func (c *Config) IsDevelopment() bool { return c.Env == "development" }
 func (c *Config) IsStaging() bool     { return c.Env == "staging" }
+
+// Validate runs startup assertions. Fails closed.
+func (c *Config) Validate() error {
+	if c.IsProduction() {
+		if c.JWTSecret == "replace-me-with-32-bytes-of-random" {
+			return configError("JWT_SECRET not set in production")
+		}
+		if strings.HasPrefix(c.KashierAPIKey, "sk_test_") {
+			return configError("Kashier test key set in production")
+		}
+		if c.StorageDriver == "local" {
+			return configError("STORAGE_DRIVER=local is not permitted in production")
+		}
+		if c.StorageDriver == "s3" {
+			if c.S3Endpoint == "" || c.S3AccessKey == "" || c.S3SecretKey == "" {
+				return configError("S3 credentials incomplete in production")
+			}
+		}
+		// Optional: You could also add a check here to ensure WSOriginPatterns doesn't contain "*" in production
+	}
+
+	switch c.StorageDriver {
+	case "local", "s3":
+	default:
+		return configError("unknown STORAGE_DRIVER: " + c.StorageDriver)
+	}
+
+	return nil
+}
+
+type configError string
+
+func (e configError) Error() string { return string(e) }

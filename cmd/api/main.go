@@ -8,8 +8,15 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
+	"tibi/internal/files/accesschecker"
+	filedelete "tibi/internal/files/delete"
+	"tibi/internal/files/get"
+	"tibi/internal/files/getmetadata"
+	"tibi/internal/files/upload"
+	"tibi/internal/storage"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -141,6 +148,30 @@ func run() error {
 	consultationChecker := consultationswschecker.NewService(db)
 	queueChecker := queuewschecker.NewService(db)
 	hub := ws.NewHub(combinedChecker{c: consultationChecker, q: queueChecker}, slog.Default())
+
+	// Platform storage
+	var st storage.Storage
+	switch cfg.StorageDriver {
+	case "local":
+		st, err = storage.NewLocalFS(cfg.StorageLocalRoot, cfg.StorageLocalBaseURL, cfg.StorageLocalSignKey)
+	case "s3":
+		st, err = storage.NewS3(storage.S3Config{
+			Endpoint: cfg.S3Endpoint, AccessKey: cfg.S3AccessKey, SecretKey: cfg.S3SecretKey,
+			Bucket: cfg.S3Bucket, UseSSL: cfg.S3UseSSL, Region: cfg.S3Region, PublicURL: cfg.S3PublicURL,
+		})
+	default:
+		return errors.New("unknown storage driver")
+	}
+	if err != nil {
+		return err
+	}
+
+	// Files module
+	fileUploadSvc := upload.NewService(db, st)
+	fileGetSvc := get.NewService(db, st)
+	fileMetaSvc := getmetadata.NewService(db)
+	fileDeleteSvc := filedelete.NewService(db, st)
+	fileAuthz := accesschecker.New(db)
 
 	// Core APIs
 	identityAPI := identityapi.New(db)
@@ -318,6 +349,19 @@ func run() error {
 			r.Get("/{id}/queue", getpatientqueue.NewHandler(patientQueueSvc).ServeHTTP)
 			r.Post("/{id}/cancel", cancel.NewHandler(cancelSvc).ServeHTTP)
 		})
+		r.Group(func(r chi.Router) {
+			r.Use(auth.RequireAuth(issuer))
+			r.Post("/files", upload.NewHandler(fileUploadSvc).ServeHTTP)
+			r.Get("/files/{id}", get.NewHandler(fileGetSvc, fileAuthz).ServeHTTP)
+			r.Get("/files/{id}/metadata", getmetadata.NewHandler(fileMetaSvc, fileAuthz).ServeHTTP)
+			r.Delete("/files/{id}", filedelete.NewHandler(fileDeleteSvc, fileAuthz).ServeHTTP)
+		})
+
+		// Dev-only static serving for LocalFS driver. Disabled in production.
+		if cfg.StorageDriver == "local" && !cfg.IsProduction() {
+			local, _ := st.(*storage.LocalFS)
+			r.Get("/files/{key...}", devFileHandler(local))
+		}
 
 		r.Group(func(r chi.Router) {
 			r.Use(auth.RequireAuth(issuer))
@@ -373,4 +417,24 @@ func run() error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	return srv.Shutdown(shutdownCtx)
+}
+
+func devFileHandler(local *storage.LocalFS) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if local == nil {
+			httpx.Error(w, r, httpx.NotFound("file not found"))
+			return
+		}
+		key := chi.URLParam(r, "key")
+		expires, err := strconv.ParseInt(r.URL.Query().Get("expires"), 10, 64)
+		if err != nil || key == "" {
+			httpx.Error(w, r, httpx.Unauthenticated("invalid signature"))
+			return
+		}
+		if !local.VerifySignature(key, expires, r.URL.Query().Get("sig")) {
+			httpx.Error(w, r, httpx.Unauthenticated("invalid signature"))
+			return
+		}
+		http.ServeFile(w, r, local.AbsPath(key))
+	}
 }

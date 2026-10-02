@@ -58,6 +58,49 @@ func (ns NullConsultationStatus) Value() (driver.Value, error) {
 	return string(ns.ConsultationStatus), nil
 }
 
+type FileScope string
+
+const (
+	FileScopeProfileImage      FileScope = "ProfileImage"
+	FileScopePostAttachment    FileScope = "PostAttachment"
+	FileScopeMedicalAttachment FileScope = "MedicalAttachment"
+)
+
+func (e *FileScope) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = FileScope(s)
+	case string:
+		*e = FileScope(s)
+	default:
+		return fmt.Errorf("unsupported scan type for FileScope: %T", src)
+	}
+	return nil
+}
+
+type NullFileScope struct {
+	FileScope FileScope
+	Valid     bool // Valid is true if FileScope is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullFileScope) Scan(value interface{}) error {
+	if value == nil {
+		ns.FileScope, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.FileScope.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullFileScope) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.FileScope), nil
+}
+
 type PaymentChannel string
 
 const (
@@ -558,8 +601,9 @@ type ContentPost struct {
 type ContentPostAttachment struct {
 	ID           int64
 	DoctorPostID int64
-	FileUrl      string
+	FileUrl      *string
 	FileType     string
+	FileID       *int64
 }
 
 type DoctorsClinicSession struct {
@@ -677,6 +721,19 @@ type PaymentsPayment struct {
 	CreatedAt        pgtype.Timestamptz
 	UpdatedAt        pgtype.Timestamptz
 	DeletedAt        pgtype.Timestamptz
+}
+
+type PlatformFile struct {
+	ID            int64
+	UploaderID    int64
+	Scope         FileScope
+	ObjectKey     string
+	OriginalName  string
+	ContentType   string
+	SizeBytes     int64
+	ContentSha256 string
+	CreatedAt     pgtype.Timestamptz
+	DeletedAt     pgtype.Timestamptz
 }
 
 type QueueEntry struct {
