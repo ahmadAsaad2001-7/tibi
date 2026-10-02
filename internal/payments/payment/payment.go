@@ -48,4 +48,16 @@ func (p *Payment) MarkAsSucceeded(transactionID string, now time.Time) error {
 	return nil
 }
 
+// MarkAsFailed is the state transition applied by the webhook on a failed
+// payment. A Pending payment may move to Failed; terminal states may not.
+func (p *Payment) MarkAsFailed(transactionID string, now time.Time) error {
+	if p.Status != StatusPending {
+		return ErrInvalidTransition
+	}
+	p.Status = StatusFailed
+	p.TransactionID = &transactionID
+	p.TransactionDate = &now
+	return nil
+}
+
 var ErrInvalidTransition = errors.New("invalid payment status transition")

@@ -64,7 +64,6 @@ linters-settings:
 
       platform:
         files: ["**/internal/platform/**"]
-        # Platform imports no module. This is enforced by absence, not by allow.
         deny:
           - tibi/internal/identity
           - tibi/internal/patients
@@ -74,7 +73,40 @@ linters-settings:
           - tibi/internal/payments
           - tibi/internal/doctorposts
           - tibi/internal/content
+          - tibi/internal/queue
 
+      payments:
+        files: ["**/internal/payments/**"]
+        allow:
+          - $gostd
+          - tibi/internal/payments
+          - tibi/internal/consultations/contracts
+          - tibi/internal/platform
+          - github.com/jackc/pgx/v5
+          - github.com/go-chi/chi/v5
+
+      consultations:
+        files: ["**/internal/consultations/**"]
+        allow:
+          - $gostd
+          - tibi/internal/consultations
+          - tibi/internal/doctors/contracts
+          - tibi/internal/payments/contracts
+          - tibi/internal/platform
+          - github.com/jackc/pgx/v5
+          - github.com/go-chi/chi/v5
+          - github.com/go-playground/validator/v10
+
+      queue:
+        files: ["**/internal/queue/**"]
+        allow:
+          - $gostd
+          - tibi/internal/queue
+          - tibi/internal/consultations/contracts
+          - tibi/internal/platform
+          - github.com/jackc/pgx/v5
+          - github.com/go-chi/chi/v5
+          - github.com/go-playground/validator/v10
 
 
 

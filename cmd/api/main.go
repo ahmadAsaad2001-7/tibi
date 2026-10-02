@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -19,10 +20,15 @@ import (
 	"tibi/internal/admin/listvotes"
 	"tibi/internal/admin/proposevote"
 
+	consultationsapi "tibi/internal/consultations/api"
 	"tibi/internal/consultations/book"
 	"tibi/internal/consultations/cancel"
+	"tibi/internal/consultations/checkininfo"
 	"tibi/internal/consultations/getbyid"
 	"tibi/internal/consultations/listmy"
+	"tibi/internal/consultations/markcompleted"
+	"tibi/internal/consultations/markconfirmed"
+	consultationswschecker "tibi/internal/consultations/wschecker"
 
 	"tibi/internal/doctors/addexception"
 	doctorsapi "tibi/internal/doctors/api"
@@ -61,11 +67,27 @@ import (
 
 	paymentsapi "tibi/internal/payments/api"
 	"tibi/internal/payments/createpending"
+	"tibi/internal/payments/kashier"
+	"tibi/internal/payments/kashier/webhook"
 
 	"tibi/internal/platform/auth"
 	"tibi/internal/platform/config"
 	"tibi/internal/platform/database"
 	"tibi/internal/platform/httpx"
+	"tibi/internal/platform/ws"
+
+	"tibi/internal/queue/call"
+	"tibi/internal/queue/checkin"
+	"tibi/internal/queue/closesession"
+	"tibi/internal/queue/complete"
+	"tibi/internal/queue/eta"
+	"tibi/internal/queue/getpatientqueue"
+	"tibi/internal/queue/getsessionqueue"
+	"tibi/internal/queue/markcancelled"
+	"tibi/internal/queue/noshow"
+	"tibi/internal/queue/skip"
+	"tibi/internal/queue/start"
+	queuewschecker "tibi/internal/queue/wschecker"
 )
 
 func main() {
@@ -87,12 +109,22 @@ func run() error {
 	if cfg.IsProduction() && cfg.JWTSecret == "replace-me-with-32-bytes-of-random" {
 		return errors.New("JWT_SECRET not set in production")
 	}
+	if cfg.IsProduction() && strings.HasPrefix(cfg.KashierAPIKey, "sk_test_") {
+		return errors.New("Kashier test key set in production")
+	}
 
 	logLevel := slog.LevelInfo
 	if cfg.IsDevelopment() {
 		logLevel = slog.LevelDebug
 	}
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel})))
+	if cfg.IsProduction() {
+		for _, o := range cfg.WSOriginPatterns {
+			if o == "*" {
+				slog.Warn("ws_origin_wildcard_in_production")
+			}
+		}
+	}
 
 	db, err := database.Connect(ctx, cfg.DatabaseURL)
 	if err != nil {
@@ -104,6 +136,11 @@ func run() error {
 	hasher := auth.NewPasswordHasher()
 	issuer := auth.NewTokenIssuer(cfg.JWTSecret, cfg.JWTAccessTTL)
 	refreshStore := auth.NewRefreshStore(db, cfg.JWTRefreshTTL)
+	kashierClient := kashier.NewClient(cfg.KashierAPIKey, cfg.KashierAPIURL)
+
+	consultationChecker := consultationswschecker.NewService(db)
+	queueChecker := queuewschecker.NewService(db)
+	hub := ws.NewHub(combinedChecker{c: consultationChecker, q: queueChecker}, slog.Default())
 
 	// Core APIs
 	identityAPI := identityapi.New(db)
@@ -114,15 +151,32 @@ func run() error {
 	doctorsAPI := doctorsapi.New(db, createSessionSvc)
 
 	// Payments
-	createPendingSvc := createpending.NewService(db)
+	createPendingSvc := createpending.NewService(db, kashierClient)
 	paymentsAPI := paymentsapi.New(createPendingSvc)
-
 	// Consultations
 	bookSvc := book.NewService(db, doctorsAPI, paymentsAPI)
-	cancelSvc := cancel.NewService(db)
 	listMySvc := listmy.NewService(db)
 	getByIDSvc := getbyid.NewService(db)
 
+	// Consultations
+	markConfirmedSvc := markconfirmed.NewService(db, hub)
+	checkinInfoSvc := checkininfo.NewService(db)
+	markCompletedSvc := markcompleted.NewService(db)
+	consultationsAPI := consultationsapi.New(markConfirmedSvc, checkinInfoSvc, markCompletedSvc)
+	webhookSvc := webhook.NewService(db, cfg.KashierWebhookSecret, consultationsAPI)
+
+	etaSvc := eta.NewService(db)
+	sessionQueueSvc := getsessionqueue.NewService(db)
+	markCancelSvc := markcancelled.NewService(db, hub, sessionQueueSvc)
+	cancelSvc := cancel.NewService(db, markCancelSvc)
+	checkinSvc := checkin.NewService(db, consultationsAPI, etaSvc, hub, sessionQueueSvc)
+	callSvc := call.NewService(db, hub, sessionQueueSvc)
+	startSvc := start.NewService(db, hub, sessionQueueSvc)
+	completeSvc := complete.NewService(db, consultationsAPI, hub, sessionQueueSvc)
+	skipSvc := skip.NewService(db, hub, sessionQueueSvc)
+	noshowSvc := noshow.NewService(db, hub, sessionQueueSvc)
+	closeSessionSvc := closesession.NewService(db, hub, sessionQueueSvc)
+	patientQueueSvc := getpatientqueue.NewService(db, etaSvc)
 	// Doctor Profile services
 	specialtiesSvc := listspecialties.NewService(db)
 	updateProfileSvc := updateprofile.NewService(db)
@@ -173,6 +227,7 @@ func run() error {
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		httpx.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
+	r.Get("/hubs/consultations", ws.NewHandler(hub, issuer, cfg.WSOriginPatterns).ServeHTTP)
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Route("/auth", func(r chi.Router) {
@@ -196,6 +251,7 @@ func run() error {
 					w.WriteHeader(http.StatusNoContent)
 				})
 			})
+			r.Post("/webhooks/kashier", webhook.NewHandler(webhookSvc).ServeHTTP)
 		})
 
 		r.Get("/specialties", listspecialties.NewHandler(specialtiesSvc).ServeHTTP)
@@ -254,11 +310,25 @@ func run() error {
 			r.Group(func(r chi.Router) {
 				r.Use(auth.RequireRole(identitycontracts.RolePatient))
 				r.Post("/", book.NewHandler(bookSvc).ServeHTTP)
+				r.Post("/{id}/check-in", checkin.NewHandler(checkinSvc).ServeHTTP)
 			})
 
 			r.Get("/", listmy.NewHandler(listMySvc).ServeHTTP)
 			r.Get("/{id}", getbyid.NewHandler(getByIDSvc).ServeHTTP)
+			r.Get("/{id}/queue", getpatientqueue.NewHandler(patientQueueSvc).ServeHTTP)
 			r.Post("/{id}/cancel", cancel.NewHandler(cancelSvc).ServeHTTP)
+		})
+
+		r.Group(func(r chi.Router) {
+			r.Use(auth.RequireAuth(issuer))
+			r.Use(auth.RequireRole(identitycontracts.RoleDoctor, identitycontracts.RoleAdmin))
+			r.Get("/clinic-sessions/{id}/queue", getsessionqueue.NewHandler(sessionQueueSvc).ServeHTTP)
+			r.Post("/clinic-sessions/{id}/close", closesession.NewHandler(closeSessionSvc).ServeHTTP)
+			r.Post("/queue/{entryId}/call", call.NewHandler(callSvc).ServeHTTP)
+			r.Post("/queue/{entryId}/start", start.NewHandler(startSvc).ServeHTTP)
+			r.Post("/queue/{entryId}/complete", complete.NewHandler(completeSvc).ServeHTTP)
+			r.Post("/queue/{entryId}/skip", skip.NewHandler(skipSvc).ServeHTTP)
+			r.Post("/queue/{entryId}/no-show", noshow.NewHandler(noshowSvc).ServeHTTP)
 		})
 
 		// Admin module routes

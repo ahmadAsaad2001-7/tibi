@@ -9,6 +9,8 @@ type CreatePendingPaymentInput struct {
 	Amount           string
 	Currency         string
 	Channel          string
+	ReturnURL        string
+	CancelURL        string
 }
 
 type CreatePendingPaymentOutput struct {

@@ -17,6 +17,15 @@ type Config struct {
 	JWTSecret     string        `env:"JWT_SECRET,required"`
 	JWTAccessTTL  time.Duration `env:"JWT_ACCESS_TTL" envDefault:"15m"`
 	JWTRefreshTTL time.Duration `env:"JWT_REFRESH_TTL" envDefault:"720h"`
+
+	// Kashier payment provider (Slice 8b/8c).
+	KashierAPIKey        string `env:"KASHIER_API_KEY,required"`
+	KashierAPIURL        string `env:"KASHIER_API_URL" envDefault:"https://api.kashier.io"`
+	KashierWebhookSecret string `env:"KASHIER_WEBHOOK_SECRET,required"`
+
+	// WSOriginPatterns is a comma-separated list of allowed WebSocket origins.
+	// Use "*" only in development. Production should list explicit hosts.
+	WSOriginPatterns []string `env:"WS_ORIGIN_PATTERNS" envSeparator:"," envDefault:"*"`
 }
 
 // Load reads config from the process environment.

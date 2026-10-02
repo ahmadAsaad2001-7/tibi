@@ -1,4 +1,4 @@
-package submitforverification
+package db
 
 import (
 	"context"

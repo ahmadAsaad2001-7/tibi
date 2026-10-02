@@ -90,7 +90,6 @@ func (s *Service) Execute(ctx context.Context, userID int64, cmd Command) (*Resp
 			return httpx.Internal(err)
 		}
 
-		// 4. Lazy cleanup of expired Pendings on this slot
 		if err := q.CancelStalePending(ctx, db.CancelStalePendingParams{
 			DoctorProfileID: cmd.DoctorProfileID,
 			ScheduledAt:     scheduledAt,
@@ -98,20 +97,17 @@ func (s *Service) Execute(ctx context.Context, userID int64, cmd Command) (*Resp
 			return httpx.Internal(err)
 		}
 
-		// 5. Check if slot is still available after cleanup
-		countRow, err := q.CountActiveSlot(ctx, db.CountActiveSlotParams{
+		count, err := q.CountActiveSlot(ctx, db.CountActiveSlotParams{
 			DoctorProfileID: cmd.DoctorProfileID,
 			ScheduledAt:     scheduledAt,
 		})
 		if err != nil {
 			return httpx.Internal(err)
 		}
-		// sqlc generates 'N' for 'AS n' in COUNT(*)::bigint AS n
-		if countRow.N > 0 {
+		if count > 0 {
 			return httpx.Conflict("slot is not available")
 		}
 
-		// 6. Insert the new consultation
 		row, err := q.InsertConsultation(ctx, db.InsertConsultationParams{
 			PatientProfileID: patientID,
 			DoctorProfileID:  cmd.DoctorProfileID,
@@ -124,6 +120,13 @@ func (s *Service) Execute(ctx context.Context, userID int64, cmd Command) (*Resp
 		if err != nil {
 			return httpx.Internal(err)
 		}
+		var returnURL, cancelURL string
+		if cmd.ReturnURL != "" {
+			returnURL = cmd.ReturnURL
+		}
+		if cmd.CancelURL != "" {
+			cancelURL = cmd.CancelURL
+		}
 
 		// 7. Cross-module write: create the pending payment in the same tx
 		payOut, err := s.payments.CreatePendingPayment(ctx, paymentscontracts.CreatePendingPaymentInput{
@@ -133,6 +136,8 @@ func (s *Service) Execute(ctx context.Context, userID int64, cmd Command) (*Resp
 			Amount:           feeAmount,
 			Currency:         feeCurrency,
 			Channel:          cmd.PaymentChannel,
+			ReturnURL:        returnURL,
+			CancelURL:        cancelURL,
 		})
 		if err != nil {
 			return err

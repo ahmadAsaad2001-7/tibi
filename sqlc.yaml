@@ -1,0 +1,541 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/identity/register/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/identity/register/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+        overrides:
+          - db_type: "user_role"
+            go_type: "tibi/internal/identity/user.Role"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/identity/login/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/identity/login/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/identity/me/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/identity/me/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+        overrides:
+          - db_type: "user_role"
+            go_type: "tibi/internal/identity/user.Role"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/patients/createprofile/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/patients/createprofile/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/doctors/createprofile/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctors/createprofile/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/doctors/listspecialties/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctors/listspecialties/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/doctors/updateprofile/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctors/updateprofile/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/doctors/submitforverification/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctors/submitforverification/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/admin/proposevote/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/admin/proposevote/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/admin/castvote/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/admin/castvote/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/admin/listvotes/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/admin/listvotes/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/admin/listpendingdoctors/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/admin/listpendingdoctors/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/doctors/putschedule/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctors/putschedule/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/doctors/listavailabilitydays/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctors/listavailabilitydays/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/doctors/listslots/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctors/listslots/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/doctors/getschedule/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctors/getschedule/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/doctors/addexception/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctors/addexception/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/doctors/deleteexception/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctors/deleteexception/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/doctors/search/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctors/search/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/doctors/getdoctor/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctors/getdoctor/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/doctors/createsession/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctors/createsession/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/consultations/book/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/consultations/book/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/consultations/cancel/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/consultations/cancel/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/consultations/listmy/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/consultations/listmy/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/consultations/getbyid/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/consultations/getbyid/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/payments/createpending/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/payments/createpending/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/doctorposts/createpost/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctorposts/createpost/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/doctorposts/updatepost/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctorposts/updatepost/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/doctorposts/deletepost/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctorposts/deletepost/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/doctorposts/publishpost/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctorposts/publishpost/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/doctorposts/unpublishpost/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctorposts/unpublishpost/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/doctorposts/listfeed/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctorposts/listfeed/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/doctorposts/getpost/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctorposts/getpost/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/doctorposts/listbydoctor/db/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctorposts/listbydoctor/db"
+        sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/consultations/checkininfo/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/consultations/checkininfo/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/consultations/markcompleted/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/consultations/markcompleted/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/consultations/markconfirmed/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/consultations/markconfirmed/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/queue/checkin/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/queue/checkin/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/queue/eta/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/queue/eta/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/queue/call/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/queue/call/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+        overrides:
+          - db_type: "queue_status"
+            go_type: "tibi/internal/queue/queueentry.Status"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/queue/start/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/queue/start/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+        overrides:
+          - db_type: "queue_status"
+            go_type: "tibi/internal/queue/queueentry.Status"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/queue/complete/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/queue/complete/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+        overrides:
+          - db_type: "queue_status"
+            go_type: "tibi/internal/queue/queueentry.Status"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/queue/skip/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/queue/skip/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+        overrides:
+          - db_type: "queue_status"
+            go_type: "tibi/internal/queue/queueentry.Status"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/queue/noshow/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/queue/noshow/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+        overrides:
+          - db_type: "queue_status"
+            go_type: "tibi/internal/queue/queueentry.Status"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/queue/getpatientqueue/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/queue/getpatientqueue/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/queue/getsessionqueue/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/queue/getsessionqueue/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/queue/markcancelled/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/queue/markcancelled/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/queue/closesession/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/queue/closesession/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/consultations/wschecker/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/consultations/wschecker/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/queue/wschecker/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/queue/wschecker/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true

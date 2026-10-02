@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"tibi/internal/doctors/doctorprofile"
+	"tibi/internal/doctors/submitforverification/db"
 	"tibi/internal/platform/database"
 	"tibi/internal/platform/httpx"
 )
@@ -32,7 +33,7 @@ func (s *Service) Execute(ctx context.Context, userID int64) (*Response, error) 
 	var resp *Response
 
 	err := s.db.WithTx(ctx, func(ctx context.Context) error {
-		q := New(s.db.Querier(ctx))
+		q := db.New(s.db.Querier(ctx))
 
 		row, err := q.GetProfileForSubmission(ctx, userID)
 		if err != nil {
@@ -78,7 +79,7 @@ func (s *Service) Execute(ctx context.Context, userID int64) (*Response, error) 
 			return httpx.Internal(err)
 		}
 
-		affected, err := q.UpdateVerificationStatus(ctx, UpdateVerificationStatusParams{
+		affected, err := q.UpdateVerificationStatus(ctx, db.UpdateVerificationStatusParams{
 			ID:                 profile.ID,
 			VerificationStatus: string(doctorprofile.StatusPendingReview),
 			SubmittedAt:        &now,

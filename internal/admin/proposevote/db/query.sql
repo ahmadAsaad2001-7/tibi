@@ -22,7 +22,6 @@ SELECT role FROM identity_users
 WHERE id = $1 AND deleted_at IS NULL;
 
 -- name: ResolveVoteImmediately :execrows
--- Used only when required_votes = 1 (not our case today, but the schema allows it).
 UPDATE admin_votes
 SET status = 'Resolved', resolved_at = $2, updated_at = now()
-WHERE id = $1 AND status = 'Open' AND admin_votes.xmin::text = $3;
+WHERE id = $1 AND status = 'Open' AND xmin::text = $3;

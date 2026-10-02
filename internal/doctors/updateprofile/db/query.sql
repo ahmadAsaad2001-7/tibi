@@ -10,7 +10,7 @@ SELECT
     average_rating::text          AS average_rating,
     rating_count,
     created_at, updated_at, deleted_at,
-    xmin::text                    AS xmin
+    doctors_profiles.xmin::text   AS xmin
 FROM doctors_profiles
 WHERE user_id = $1 AND deleted_at IS NULL;
 
@@ -34,7 +34,7 @@ SET
     clinic_address         = $6,
     medical_license_number = $7,
     updated_at             = now()
-WHERE id = $1 AND doctors_profiles.xmin::text = $8;
+WHERE id = $1 AND xmin::text = $8;
 
 -- name: DeleteDoctorSpecialties :exec
 DELETE FROM doctors_profile_specialties WHERE doctor_profile_id = $1;

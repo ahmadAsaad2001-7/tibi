@@ -78,6 +78,15 @@ type ConsultationRow struct {
 	CreatedAt time.Time
 }
 
+func (q *Queries) LockSession(ctx context.Context, sessionID int64) (int64, error) {
+	var id int64
+	err := q.db.QueryRow(ctx, `
+		SELECT id FROM doctors_clinic_sessions
+		WHERE id = $1
+		FOR UPDATE`, sessionID).Scan(&id)
+	return id, err
+}
+
 func (q *Queries) InsertConsultation(ctx context.Context, arg InsertConsultationParams) (ConsultationRow, error) {
 	var row ConsultationRow
 	err := q.db.QueryRow(ctx, `

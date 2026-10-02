@@ -13,6 +13,8 @@ func TestLoadFromEnvironment(t *testing.T) {
 	t.Setenv("HTTP_PORT", "9090")
 	t.Setenv("JWT_ACCESS_TTL", "5m")
 	t.Setenv("JWT_REFRESH_TTL", "24h")
+	t.Setenv("KASHIER_API_KEY", "unit-test-kashier")
+	t.Setenv("KASHIER_WEBHOOK_SECRET", "unit-test-webhook")
 
 	cfg, err := Load()
 	if err != nil {

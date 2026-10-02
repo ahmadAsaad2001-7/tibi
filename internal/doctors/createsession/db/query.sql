@@ -2,10 +2,9 @@
 INSERT INTO doctors_clinic_sessions (
     doctor_profile_id, session_date, start_time, end_time
 ) VALUES ($1, $2, $3::time, $4::time)
-    ON CONFLICT (doctor_profile_id, session_date, start_time) DO UPDATE
-                                                                     SET end_time = EXCLUDED.end_time
-                                                                 WHERE false  -- no-op update to RETURNING on conflict
-                                                                     RETURNING id, created_at;
+ON CONFLICT (doctor_profile_id, session_date, start_time)
+DO UPDATE SET end_time = doctors_clinic_sessions.end_time
+RETURNING id, created_at;
 
 -- name: GetSessionForBlock :one
 SELECT id FROM doctors_clinic_sessions
@@ -39,4 +38,4 @@ WHERE doctor_profile_id = $1
   AND from_time <= $3::time
   AND to_time >= $4::time
   AND type = 'Closed'
-LIMIT 1;    
+LIMIT 1;

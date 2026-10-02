@@ -2,7 +2,7 @@
 SELECT
     id, action_type, target_user_id, status, required_votes,
     votes_for, votes_against, expires_at, resolved_at,
-    xmin::text AS xmin
+    admin_votes.xmin::text AS xmin
 FROM admin_votes
 WHERE id = $1 AND deleted_at IS NULL;
 
@@ -19,7 +19,7 @@ SET votes_for     = $2,
     status        = $4,
     resolved_at   = $5,
     updated_at    = now()
-WHERE id = $1 AND admin_votes.xmin::text = $6;
+WHERE id = $1 AND xmin::text = $6;
 
 -- name: InsertVoteParticipant :exec
 INSERT INTO admin_vote_participants (admin_vote_id, admin_user_id, vote, voted_at)
