@@ -11,7 +11,15 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"tibi/internal/clinical/addattachment"
+	"tibi/internal/clinical/deleteattachment"
+	"tibi/internal/clinical/getprescription"
+	"tibi/internal/clinical/getrecord"
+	clinicalscope "tibi/internal/clinical/scope"
+	"tibi/internal/clinical/upsertprescription"
+	"tibi/internal/clinical/upsertrecord"
 	"tibi/internal/files/accesschecker"
+	filesapi "tibi/internal/files/api"
 	filedelete "tibi/internal/files/delete"
 	"tibi/internal/files/get"
 	"tibi/internal/files/getmetadata"
@@ -31,6 +39,7 @@ import (
 	"tibi/internal/consultations/book"
 	"tibi/internal/consultations/cancel"
 	"tibi/internal/consultations/checkininfo"
+	"tibi/internal/consultations/clinicalcontext"
 	"tibi/internal/consultations/getbyid"
 	"tibi/internal/consultations/listmy"
 	"tibi/internal/consultations/markcompleted"
@@ -166,13 +175,17 @@ func run() error {
 		return err
 	}
 
-	// Files module
+	// Files module — access checker with per-scope registry.
+	fileAuthz := accesschecker.New(db)
 	fileUploadSvc := upload.NewService(db, st)
 	fileGetSvc := get.NewService(db, st)
 	fileMetaSvc := getmetadata.NewService(db)
 	fileDeleteSvc := filedelete.NewService(db, st)
-	fileAuthz := accesschecker.New(db)
+	filesAPI := filesapi.New(fileMetaSvc, st)
 
+	// Consultations — new clinicalcontext service
+	clinicalCtxSvc := clinicalcontext.NewService(db)
+	
 	// Core APIs
 	identityAPI := identityapi.New(db)
 
@@ -193,8 +206,19 @@ func run() error {
 	markConfirmedSvc := markconfirmed.NewService(db, hub)
 	checkinInfoSvc := checkininfo.NewService(db)
 	markCompletedSvc := markcompleted.NewService(db)
-	consultationsAPI := consultationsapi.New(markConfirmedSvc, checkinInfoSvc, markCompletedSvc)
+	consultationsAPI := consultationsapi.New(markConfirmedSvc, checkinInfoSvc, markCompletedSvc, clinicalCtxSvc)
 	webhookSvc := webhook.NewService(db, cfg.KashierWebhookSecret, consultationsAPI)
+
+	// Clinical module
+	upsertRecordSvc := upsertrecord.NewService(db, consultationsAPI)
+	getRecordSvc := getrecord.NewService(db, filesAPI)
+	addAttachSvc := addattachment.NewService(db, consultationsAPI, filesAPI)
+	delAttachSvc := deleteattachment.NewService(db)
+	upsertPrescSvc := upsertprescription.NewService(db, consultationsAPI)
+	getPrescSvc := getprescription.NewService(db)
+
+	// Register the clinical scope rule BEFORE building routes.
+	fileAuthz.Register("MedicalAttachment", clinicalscope.New(db))
 
 	etaSvc := eta.NewService(db)
 	sessionQueueSvc := getsessionqueue.NewService(db)
@@ -348,6 +372,19 @@ func run() error {
 			r.Get("/{id}", getbyid.NewHandler(getByIDSvc).ServeHTTP)
 			r.Get("/{id}/queue", getpatientqueue.NewHandler(patientQueueSvc).ServeHTTP)
 			r.Post("/{id}/cancel", cancel.NewHandler(cancelSvc).ServeHTTP)
+
+			// Clinical write routes (doctor only)
+			r.Group(func(r chi.Router) {
+				r.Use(auth.RequireRole(identitycontracts.RoleDoctor))
+				r.Put("/{id}/medical-record", upsertrecord.NewHandler(upsertRecordSvc).ServeHTTP)
+				r.Post("/{id}/medical-record/attachments", addattachment.NewHandler(addAttachSvc).ServeHTTP)
+				r.Delete("/{id}/medical-record/attachments/{attachmentId}", deleteattachment.NewHandler(delAttachSvc).ServeHTTP)
+				r.Put("/{id}/prescription", upsertprescription.NewHandler(upsertPrescSvc).ServeHTTP)
+			})
+
+			// Read paths open to both doctor and patient; ownership enforced in SQL.
+			r.Get("/{id}/medical-record", getrecord.NewHandler(getRecordSvc).ServeHTTP)
+			r.Get("/{id}/prescription", getprescription.NewHandler(getPrescSvc).ServeHTTP)
 		})
 		r.Group(func(r chi.Router) {
 			r.Use(auth.RequireAuth(issuer))

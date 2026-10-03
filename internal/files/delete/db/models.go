@@ -564,6 +564,56 @@ type AdminVoteParticipant struct {
 	VotedAt     pgtype.Timestamptz
 }
 
+type ClinicalMedicalAttachment struct {
+	ID              int64
+	MedicalRecordID int64
+	FileID          int64
+	Label           *string
+	CreatedAt       pgtype.Timestamptz
+	UpdatedAt       pgtype.Timestamptz
+	DeletedAt       pgtype.Timestamptz
+}
+
+type ClinicalMedicalRecord struct {
+	ID                 int64
+	ConsultationID     int64
+	PatientProfileID   int64
+	DoctorProfileID    int64
+	Allergies          *string
+	CurrentMedications *string
+	PastConditions     *string
+	DoctorNotes        *string
+	CreatedAt          pgtype.Timestamptz
+	UpdatedAt          pgtype.Timestamptz
+	DeletedAt          pgtype.Timestamptz
+	Xmin               pgtype.Uint32
+}
+
+type ClinicalPrescribedMedication struct {
+	ID             int64
+	PrescriptionID int64
+	MedicationName string
+	Dosage         string
+	Frequency      string
+	DurationDays   int32
+	Notes          *string
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	DeletedAt      pgtype.Timestamptz
+}
+
+type ClinicalPrescription struct {
+	ID               int64
+	ConsultationID   int64
+	PatientProfileID int64
+	DoctorProfileID  int64
+	IssuedAt         pgtype.Timestamptz
+	CreatedAt        pgtype.Timestamptz
+	UpdatedAt        pgtype.Timestamptz
+	DeletedAt        pgtype.Timestamptz
+	Xmin             pgtype.Uint32
+}
+
 type ConsultationsConsultation struct {
 	ID               int64
 	PatientProfileID int64

@@ -109,6 +109,20 @@ linters-settings:
           - github.com/go-chi/chi/v5
           - github.com/go-playground/validator/v10
 
+
+      clinical:
+        files: [ "**/internal/clinical/**" ]
+        allow:
+          - $gostd
+          - tibi/internal/clinical
+          - tibi/internal/consultations/contracts
+          - tibi/internal/files/contracts
+          - tibi/internal/files/accesschecker
+          - tibi/internal/platform
+          - github.com/jackc/pgx/v5
+          - github.com/go-chi/chi/v5
+          - github.com/go-playground/validator/v10
+
       files:
         files: ["**/internal/files/**"]
         allow:

@@ -16,7 +16,7 @@ func NewHandler(svc *Service) *Handler { return &Handler{svc: svc} }
 
 // ServeHTTP handles POST /consultations/{id}/check-in. The patient must be
 // authenticated; the ownership check happens inside the service via the
-// consultations contract.
+// consultations contracts.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	u, ok := auth.UserFromContext(r.Context())
 	if !ok {

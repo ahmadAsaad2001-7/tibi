@@ -11,21 +11,13 @@ import (
 	"tibi/internal/doctors/weeklyschedule"
 )
 
-func curID(c cursor) *int64 {
-	if c.ID == 0 {
-		return nil
-	}
-	id := c.ID
-	return &id
-}
-
 func ptr[T any](v T) *T { return &v }
 
 func pgDate(t time.Time) pgtype.Date {
 	return pgtype.Date{Time: t, Valid: true}
 }
 
-func cursorFromRow(sort Sort, r db.SearchRow) cursor {
+func cursorFromRow(sort Sort, r searchRow) cursor {
 	c := cursor{ID: r.ID}
 	switch sort {
 	case SortRating:
@@ -39,7 +31,8 @@ func cursorFromRow(sort Sort, r db.SearchRow) cursor {
 	return c
 }
 
-func groupSpecialties(rows []db.SpecialtyRow) map[int64][]Specialty {
+// Updated to match exact sqlc generated type names
+func groupSpecialties(rows []db.SpecialtiesForDoctorsRow) map[int64][]Specialty {
 	out := map[int64][]Specialty{}
 	for _, r := range rows {
 		out[r.DoctorProfileID] = append(out[r.DoctorProfileID], Specialty{ID: r.SpecialtyID, Name: r.Name})
@@ -47,7 +40,7 @@ func groupSpecialties(rows []db.SpecialtyRow) map[int64][]Specialty {
 	return out
 }
 
-func groupBlocks(rows []db.BlockRow) map[int64][]weeklyschedule.Block {
+func groupBlocks(rows []db.BlocksForDoctorsRow) map[int64][]weeklyschedule.Block {
 	out := map[int64][]weeklyschedule.Block{}
 	for _, r := range rows {
 		out[r.DoctorProfileID] = append(out[r.DoctorProfileID], weeklyschedule.Block{
@@ -61,12 +54,12 @@ func groupBlocks(rows []db.BlockRow) map[int64][]weeklyschedule.Block {
 	return out
 }
 
-func groupExceptions(rows []db.ExceptionRow) map[int64][]scheduleexception.Exception {
+func groupExceptions(rows []db.ExceptionsForDoctorsRow) map[int64][]scheduleexception.Exception {
 	out := map[int64][]scheduleexception.Exception{}
 	for _, r := range rows {
 		out[r.DoctorProfileID] = append(out[r.DoctorProfileID], scheduleexception.Exception{
 			DoctorProfileID: r.DoctorProfileID,
-			Date:            r.ExceptionDate,
+			Date:            r.ExceptionDate.Time, // pgtype.Date uses .Time
 			FromTime:        tod(r.FromTime),
 			ToTime:          tod(r.ToTime),
 			Type:            scheduleexception.Type(r.Type),
@@ -75,10 +68,10 @@ func groupExceptions(rows []db.ExceptionRow) map[int64][]scheduleexception.Excep
 	return out
 }
 
-func groupBooked(rows []db.BookedRow) map[int64]map[string][]doctorprofile.TimeOfDay {
+func groupBooked(rows []db.BookedSlotsForDoctorsRow) map[int64]map[string][]doctorprofile.TimeOfDay {
 	out := map[int64]map[string][]doctorprofile.TimeOfDay{}
 	for _, r := range rows {
-		u := r.ScheduledAt.UTC()
+		u := r.ScheduledAt.Time.UTC() // pgtype.Timestamptz uses .Time
 		day := u.Format("2006-01-02")
 		m := out[r.DoctorProfileID]
 		if m == nil {

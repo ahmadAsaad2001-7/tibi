@@ -43,9 +43,11 @@ type Post struct {
 }
 
 type Attachment struct {
-	ID       int64
-	FileURL  string
-	FileType string
+	ID        int64
+	FileID    *int64  
+	LegacyURL *string
+	FileType  *string
+	CreatedAt time.Time
 }
 
 var (

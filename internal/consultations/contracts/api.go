@@ -14,6 +14,13 @@ type CheckInInfo struct {
 	IsUrgent         bool
 }
 
+type ClinicalContextInfo struct {
+	ConsultationID   int64
+	PatientProfileID int64
+	DoctorProfileID  int64
+	Status           string
+}
+
 // API is the only surface other modules may import from Consultations.
 type API interface {
 	// Confirm transitions a pending consultation to Confirmed.
@@ -27,4 +34,6 @@ type API interface {
 	// MarkCompleted transitions a consultation to Completed. It is called by
 	// the Queue module when a queue entry is completed.
 	MarkCompleted(ctx context.Context, consultationID int64) error
+	// New in slice 12.
+	ClinicalContext(ctx context.Context, consultationID, userID int64) (*ClinicalContextInfo, error)
 }

@@ -41,7 +41,7 @@ type Response struct {
 }
 
 func (s *Service) Execute(ctx context.Context, userID, consultationID int64) (*Response, error) {
-	// Ownership + status check via contract.
+	// Ownership + status check via contracts.
 	info, err := s.consultations.GetForCheckIn(ctx, consultationID, userID)
 	if err != nil {
 		return nil, err

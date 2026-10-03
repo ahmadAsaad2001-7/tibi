@@ -5,3 +5,5 @@ ALTER TABLE admin_votes ADD COLUMN xmin xid;
 ALTER TABLE consultations_consultations ADD COLUMN xmin xid;
 ALTER TABLE queue_windows ADD COLUMN xmin xid;
 ALTER TABLE queue_entries ADD COLUMN xmin xid;
+ALTER TABLE clinical_medical_records ADD COLUMN xmin xid;
+ALTER TABLE clinical_prescriptions ADD COLUMN xmin xid;

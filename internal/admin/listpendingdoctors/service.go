@@ -49,7 +49,7 @@ func (s *Service) Execute(ctx context.Context) (*Response, error) {
 			ConsultationFee:      r.ConsultationFee,
 			Currency:             r.Currency,
 			ClinicName:           r.ClinicName,
-			MedicalLicenseNumber: r.MedicalLicenseNumber,
+			MedicalLicenseNumber: stringPtr(r.MedicalLicenseNumber),
 			SubmittedAt:          timePtr(r.SubmittedAt),
 		})
 	}
@@ -62,4 +62,12 @@ func timePtr(t pgtype.Timestamptz) *time.Time {
 	}
 	v := t.Time
 	return &v
+}
+
+// ✅ NEW: Helper to convert pgtype.Text to *string
+func stringPtr(t pgtype.Text) *string {
+	if !t.Valid {
+		return nil
+	}
+	return &t.String
 }

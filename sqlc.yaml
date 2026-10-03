@@ -608,3 +608,91 @@ sql:
               import: "tibi/internal/files"
               package: "file"
               type: "Scope"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/consultations/clinicalcontext/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/consultations/clinicalcontext/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/clinical/upsertrecord/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/clinical/upsertrecord/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/clinical/getrecord/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/clinical/getrecord/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/clinical/addattachment/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/clinical/addattachment/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/clinical/deleteattachment/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/clinical/deleteattachment/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/clinical/upsertprescription/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/clinical/upsertprescription/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/clinical/getprescription/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/clinical/getprescription/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/clinical/scope/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/clinical/scope/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
