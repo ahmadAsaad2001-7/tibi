@@ -11,20 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"tibi/internal/clinical/addattachment"
-	"tibi/internal/clinical/deleteattachment"
-	"tibi/internal/clinical/getprescription"
-	"tibi/internal/clinical/getrecord"
-	clinicalscope "tibi/internal/clinical/scope"
-	"tibi/internal/clinical/upsertprescription"
-	"tibi/internal/clinical/upsertrecord"
-	"tibi/internal/files/accesschecker"
-	filesapi "tibi/internal/files/api"
-	filedelete "tibi/internal/files/delete"
-	"tibi/internal/files/get"
-	"tibi/internal/files/getmetadata"
-	"tibi/internal/files/upload"
-	"tibi/internal/storage"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -34,6 +20,14 @@ import (
 	"tibi/internal/admin/listpendingdoctors"
 	"tibi/internal/admin/listvotes"
 	"tibi/internal/admin/proposevote"
+
+	"tibi/internal/clinical/addattachment"
+	"tibi/internal/clinical/deleteattachment"
+	"tibi/internal/clinical/getprescription"
+	"tibi/internal/clinical/getrecord"
+	clinicalscope "tibi/internal/clinical/scope"
+	"tibi/internal/clinical/upsertprescription"
+	"tibi/internal/clinical/upsertrecord"
 
 	consultationsapi "tibi/internal/consultations/api"
 	"tibi/internal/consultations/book"
@@ -45,6 +39,16 @@ import (
 	"tibi/internal/consultations/markcompleted"
 	"tibi/internal/consultations/markconfirmed"
 	consultationswschecker "tibi/internal/consultations/wschecker"
+
+	communicationapi "tibi/internal/communication/api"
+	"tibi/internal/communication/createnotification"
+	"tibi/internal/communication/listmessages"
+	"tibi/internal/communication/listnotifications"
+	"tibi/internal/communication/markallread"
+	"tibi/internal/communication/markread"
+	"tibi/internal/communication/notifymessage"
+	"tibi/internal/communication/sendmessage"
+	"tibi/internal/communication/unreadcount"
 
 	"tibi/internal/doctors/addexception"
 	doctorsapi "tibi/internal/doctors/api"
@@ -61,7 +65,6 @@ import (
 	"tibi/internal/doctors/submitforverification"
 	"tibi/internal/doctors/updateprofile"
 
-	// ⚠️ New Doctor Posts imports
 	"tibi/internal/doctorposts/createpost"
 	"tibi/internal/doctorposts/deletepost"
 	"tibi/internal/doctorposts/getpost"
@@ -71,6 +74,13 @@ import (
 	"tibi/internal/doctorposts/unpublishpost"
 	"tibi/internal/doctorposts/updatepost"
 
+	"tibi/internal/files/accesschecker"
+	filesapi "tibi/internal/files/api"
+	filedelete "tibi/internal/files/delete"
+	"tibi/internal/files/get"
+	"tibi/internal/files/getmetadata"
+	"tibi/internal/files/upload"
+
 	identityapi "tibi/internal/identity/api"
 	identitycontracts "tibi/internal/identity/contracts"
 	"tibi/internal/identity/login"
@@ -78,6 +88,8 @@ import (
 	"tibi/internal/identity/me"
 	"tibi/internal/identity/refresh"
 	"tibi/internal/identity/register"
+	identityscope "tibi/internal/identity/scope" // ✅ ADDED (verify exact path)
+	"tibi/internal/identity/setprofileimage"     // ✅ ADDED
 
 	patientscreate "tibi/internal/patients/createprofile"
 
@@ -91,6 +103,7 @@ import (
 	"tibi/internal/platform/database"
 	"tibi/internal/platform/httpx"
 	"tibi/internal/platform/ws"
+	"tibi/internal/storage"
 
 	"tibi/internal/queue/call"
 	"tibi/internal/queue/checkin"
@@ -183,9 +196,13 @@ func run() error {
 	fileDeleteSvc := filedelete.NewService(db, st)
 	filesAPI := filesapi.New(fileMetaSvc, st)
 
+	// Register scope rules BEFORE building routes.
+	fileAuthz.Register("MedicalAttachment", clinicalscope.New(db))
+	fileAuthz.Register("ProfileImage", identityscope.New()) // ✅ ADDED
+
 	// Consultations — new clinicalcontext service
 	clinicalCtxSvc := clinicalcontext.NewService(db)
-	
+
 	// Core APIs
 	identityAPI := identityapi.New(db)
 
@@ -197,13 +214,25 @@ func run() error {
 	// Payments
 	createPendingSvc := createpending.NewService(db, kashierClient)
 	paymentsAPI := paymentsapi.New(createPendingSvc)
+
+	// Communication — messages + notifications
+	createNotifSvc := createnotification.NewService(db)
+	notifyMsgSvc := notifymessage.NewService(createNotifSvc)
+	notificationsAPI := communicationapi.New(createNotifSvc, notifyMsgSvc)
+
+	sendMessageSvc := sendmessage.NewService(db, hub, notificationsAPI)
+	listMessagesSvc := listmessages.NewService(db)
+	listNotificationsSvc := listnotifications.NewService(db)
+	markReadSvc := markread.NewService(db)
+	markAllReadSvc := markallread.NewService(db)
+	unreadCountSvc := unreadcount.NewService(db)
+
 	// Consultations
-	bookSvc := book.NewService(db, doctorsAPI, paymentsAPI)
+	bookSvc := book.NewService(db, doctorsAPI, paymentsAPI, notificationsAPI)
 	listMySvc := listmy.NewService(db)
 	getByIDSvc := getbyid.NewService(db)
 
-	// Consultations
-	markConfirmedSvc := markconfirmed.NewService(db, hub)
+	markConfirmedSvc := markconfirmed.NewService(db, hub, notificationsAPI)
 	checkinInfoSvc := checkininfo.NewService(db)
 	markCompletedSvc := markcompleted.NewService(db)
 	consultationsAPI := consultationsapi.New(markConfirmedSvc, checkinInfoSvc, markCompletedSvc, clinicalCtxSvc)
@@ -217,27 +246,27 @@ func run() error {
 	upsertPrescSvc := upsertprescription.NewService(db, consultationsAPI)
 	getPrescSvc := getprescription.NewService(db)
 
-	// Register the clinical scope rule BEFORE building routes.
-	fileAuthz.Register("MedicalAttachment", clinicalscope.New(db))
-
+	// Queue & Other Services
 	etaSvc := eta.NewService(db)
 	sessionQueueSvc := getsessionqueue.NewService(db)
 	markCancelSvc := markcancelled.NewService(db, hub, sessionQueueSvc)
 	cancelSvc := cancel.NewService(db, markCancelSvc)
 	checkinSvc := checkin.NewService(db, consultationsAPI, etaSvc, hub, sessionQueueSvc)
-	callSvc := call.NewService(db, hub, sessionQueueSvc)
+	callSvc := call.NewService(db, hub, sessionQueueSvc, notificationsAPI)
 	startSvc := start.NewService(db, hub, sessionQueueSvc)
 	completeSvc := complete.NewService(db, consultationsAPI, hub, sessionQueueSvc)
 	skipSvc := skip.NewService(db, hub, sessionQueueSvc)
 	noshowSvc := noshow.NewService(db, hub, sessionQueueSvc)
 	closeSessionSvc := closesession.NewService(db, hub, sessionQueueSvc)
 	patientQueueSvc := getpatientqueue.NewService(db, etaSvc)
+
 	// Doctor Profile services
 	specialtiesSvc := listspecialties.NewService(db)
 	updateProfileSvc := updateprofile.NewService(db)
 	submitVerifSvc := submitforverification.NewService(db)
-	searchSvc := search.NewService(db)
-	getDoctorSvc := getdoctor.NewService(db)
+
+	searchSvc := search.NewService(db, filesAPI)
+	getDoctorSvc := getdoctor.NewService(db, filesAPI)
 
 	// Schedule & Availability services
 	putScheduleSvc := putschedule.NewService(db)
@@ -254,8 +283,8 @@ func run() error {
 	listPendingSvc := listpendingdoctors.NewService(db)
 	expireWorker := expirevotes.NewService(db)
 
-	// ⚠️ New: Doctor Posts services
-	createPostSvc := createpost.NewService(db, doctorsAPI)
+	// Doctor Posts services
+	createPostSvc := createpost.NewService(db, doctorsAPI, filesAPI) // ✅ أضفنا filesAPI هنا
 	updatePostSvc := updatepost.NewService(db)
 	deletePostSvc := deletepost.NewService(db)
 	publishPostSvc := publishpost.NewService(db)
@@ -272,7 +301,12 @@ func run() error {
 	loginSvc := login.NewService(db, hasher, issuer, refreshStore)
 	refreshSvc := refresh.NewService(db, issuer, refreshStore)
 	logoutSvc := logout.NewService(refreshStore)
-	meSvc := me.NewService(db)
+
+	// ✅ UPDATED: Injected filesAPI
+	meSvc := me.NewService(db, filesAPI)
+
+	// ✅ ADDED: Profile Image service
+	setProfileImageSvc := setprofileimage.NewService(db, filesAPI)
 
 	r := chi.NewRouter()
 	r.Use(httpx.Trace)
@@ -315,7 +349,7 @@ func run() error {
 		r.Get("/doctors", search.NewHandler(searchSvc).ServeHTTP)
 		r.Get("/doctors/{id}", getdoctor.NewHandler(getDoctorSvc).ServeHTTP)
 
-		// ⚠️ New: Public doctor posts feed
+		// Public doctor posts feed
 		r.Get("/doctors/{doctorId}/posts", listbydoctor.NewHandler(listByDoctorSvc).ServeHTTP)
 
 		r.Route("/profile", func(r chi.Router) {
@@ -324,6 +358,12 @@ func run() error {
 				r.Use(auth.RequireRole(contracts.RoleDoctor, contracts.RolePendingDoctor))
 				r.Patch("/doctor", updateprofile.NewHandler(updateProfileSvc).ServeHTTP)
 				r.Post("/doctor/submit-for-verification", submitforverification.NewHandler(submitVerifSvc).ServeHTTP)
+			})
+
+			// ✅ ADDED: Profile image update route (available to any authenticated user)
+			r.Group(func(r chi.Router) {
+				r.Use(auth.RequireAuth(issuer))
+				r.Patch("/image", setprofileimage.NewHandler(setProfileImageSvc).ServeHTTP)
 			})
 		})
 
@@ -340,13 +380,11 @@ func run() error {
 			r.Delete("/exceptions/{id}", deleteexception.NewHandler(delExceptionSvc).ServeHTTP)
 		})
 
-		// ⚠️ New: Doctor Posts routes
+		// Doctor Posts routes
 		r.Route("/doctor-posts", func(r chi.Router) {
-			// Public read access
 			r.Get("/", listfeed.NewHandler(listFeedSvc).ServeHTTP)
 			r.Get("/{id}", getpost.NewHandler(getPostSvc).ServeHTTP)
 
-			// Protected write access (Doctors only)
 			r.Group(func(r chi.Router) {
 				r.Use(auth.RequireAuth(issuer))
 				r.Use(auth.RequireRole(contracts.RoleDoctor))
@@ -386,6 +424,21 @@ func run() error {
 			r.Get("/{id}/medical-record", getrecord.NewHandler(getRecordSvc).ServeHTTP)
 			r.Get("/{id}/prescription", getprescription.NewHandler(getPrescSvc).ServeHTTP)
 		})
+
+		// Messages and notifications — any authenticated participant.
+		r.Group(func(r chi.Router) {
+			r.Use(auth.RequireAuth(issuer))
+
+			r.Get("/consultations/{id}/messages", listmessages.NewHandler(listMessagesSvc).ServeHTTP)
+			r.Post("/consultations/{id}/messages", sendmessage.NewHandler(sendMessageSvc).ServeHTTP)
+
+			r.Get("/notifications", listnotifications.NewHandler(listNotificationsSvc).ServeHTTP)
+			r.Post("/notifications/{id}/read", markread.NewHandler(markReadSvc).ServeHTTP)
+			r.Post("/notifications/read-all", markallread.NewHandler(markAllReadSvc).ServeHTTP)
+			r.Get("/notifications/unread-count", unreadcount.NewHandler(unreadCountSvc).ServeHTTP)
+		})
+
+		// Files routes
 		r.Group(func(r chi.Router) {
 			r.Use(auth.RequireAuth(issuer))
 			r.Post("/files", upload.NewHandler(fileUploadSvc).ServeHTTP)

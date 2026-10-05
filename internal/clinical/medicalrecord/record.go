@@ -36,20 +36,22 @@ var (
 	ErrAttachmentMissing = errors.New("attachment not found in this record")
 )
 
-// Update applies the mutable fields. Nil pointer means "do not change".
-// The zero-length string clears the field.
+// Update applies the mutable fields. A nil **string means "do not change".
+// A non-nil **string whose inner value is nil (or points to ""?) — the
+// caller passes **string so that "omit" (nil outer) vs "clear" (outer set,
+// inner nil or empty) can be distinguished.
 func (r *Record) Update(in UpdateInput, now time.Time) {
 	if in.Allergies != nil {
-		r.Allergies = in.Allergies
+		r.Allergies = *in.Allergies
 	}
 	if in.CurrentMedications != nil {
-		r.CurrentMedications = in.CurrentMedications
+		r.CurrentMedications = *in.CurrentMedications
 	}
 	if in.PastConditions != nil {
-		r.PastConditions = in.PastConditions
+		r.PastConditions = *in.PastConditions
 	}
 	if in.DoctorNotes != nil {
-		r.DoctorNotes = in.DoctorNotes
+		r.DoctorNotes = *in.DoctorNotes
 	}
 	r.UpdatedAt = now
 }

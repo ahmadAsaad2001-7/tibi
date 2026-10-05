@@ -6,7 +6,10 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype" // ✅ أضفنا هذا الاستيراد
 
+	commcontracts "tibi/internal/communication/contracts"
+	commnotify "tibi/internal/communication/notify"
 	"tibi/internal/consultations/book/db"
 	"tibi/internal/consultations/consultation"
 	doctorscontracts "tibi/internal/doctors/contracts"
@@ -19,11 +22,12 @@ type Service struct {
 	db       *database.DB
 	doctors  doctorscontracts.API
 	payments paymentscontracts.API
+	notif    commcontracts.API
 	clock    func() time.Time
 }
 
-func NewService(db *database.DB, doctors doctorscontracts.API, payments paymentscontracts.API) *Service {
-	return &Service{db: db, doctors: doctors, payments: payments, clock: time.Now}
+func NewService(db *database.DB, doctors doctorscontracts.API, payments paymentscontracts.API, notif commcontracts.API) *Service {
+	return &Service{db: db, doctors: doctors, payments: payments, notif: notif, clock: time.Now}
 }
 
 type Response struct {
@@ -90,16 +94,19 @@ func (s *Service) Execute(ctx context.Context, userID int64, cmd Command) (*Resp
 			return httpx.Internal(err)
 		}
 
+		// ✅ FIX 1: تحويل time.Time إلى pgtype.Timestamptz
+		scheduledAtTz := pgtype.Timestamptz{Time: scheduledAt, Valid: true}
+
 		if err := q.CancelStalePending(ctx, db.CancelStalePendingParams{
 			DoctorProfileID: cmd.DoctorProfileID,
-			ScheduledAt:     scheduledAt,
+			ScheduledAt:     scheduledAtTz, // ✅ تم التصحيح
 		}); err != nil {
 			return httpx.Internal(err)
 		}
 
 		count, err := q.CountActiveSlot(ctx, db.CountActiveSlotParams{
 			DoctorProfileID: cmd.DoctorProfileID,
-			ScheduledAt:     scheduledAt,
+			ScheduledAt:     scheduledAtTz, // ✅ تم التصحيح
 		})
 		if err != nil {
 			return httpx.Internal(err)
@@ -108,18 +115,28 @@ func (s *Service) Execute(ctx context.Context, userID int64, cmd Command) (*Resp
 			return httpx.Conflict("slot is not available")
 		}
 
+		// ✅ FIX 2: تحويل *int64 إلى pgtype.Int8
+		clinicSessionID := pgtype.Int8{Int64: sessionID, Valid: true}
+
+		// ✅ FIX 3: تحويل *string إلى pgtype.Text
+		var notes pgtype.Text
+		if cmd.Notes != nil {
+			notes = pgtype.Text{String: *cmd.Notes, Valid: true}
+		}
+
 		row, err := q.InsertConsultation(ctx, db.InsertConsultationParams{
 			PatientProfileID: patientID,
 			DoctorProfileID:  cmd.DoctorProfileID,
-			ClinicSessionID:  &sessionID,
-			ScheduledAt:      scheduledAt,
+			ClinicSessionID:  clinicSessionID, // ✅ تم التصحيح
+			ScheduledAt:      scheduledAtTz,   // ✅ تم التصحيح
 			DurationMinutes:  int32(slotInfo.SlotDurationMinutes),
 			IsUrgent:         cmd.IsUrgent,
-			Notes:            cmd.Notes,
+			Notes:            notes, // ✅ تم التصحيح
 		})
 		if err != nil {
 			return httpx.Internal(err)
 		}
+
 		var returnURL, cancelURL string
 		if cmd.ReturnURL != "" {
 			returnURL = cmd.ReturnURL
@@ -141,6 +158,20 @@ func (s *Service) Execute(ctx context.Context, userID int64, cmd Command) (*Resp
 		})
 		if err != nil {
 			return err
+		}
+
+		// 7b. Notify the doctor of the new booking, inside the same tx.
+		if s.notif != nil {
+			doctorUserID, err := q.GetDoctorUserID(ctx, cmd.DoctorProfileID)
+			if err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return httpx.NotFound("doctor profile not found")
+				}
+				return httpx.Internal(err)
+			}
+			if err := commnotify.ConsultationBooked(ctx, s.notif, doctorUserID, row.ID, scheduledAt); err != nil {
+				return err
+			}
 		}
 
 		// 8. Build response

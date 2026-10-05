@@ -41,18 +41,24 @@ func (q *Queries) ProfileID(ctx context.Context, userID int64) (int64, error) {
 
 const publish = `-- name: Publish :execrows
 UPDATE content_posts
-SET is_published = true, published_at = $3, updated_at = $3
-WHERE id = $1 AND doctor_profile_id = $2 AND deleted_at IS NULL AND is_published = false
+SET is_published = true, published_at = $1, updated_at = $2
+WHERE id = $3 AND doctor_profile_id = $4 AND deleted_at IS NULL AND is_published = false
 `
 
 type PublishParams struct {
+	PublishedAt     pgtype.Timestamptz
+	UpdatedAt       pgtype.Timestamptz
 	ID              int64
 	DoctorProfileID int64
-	PublishedAt     pgtype.Timestamptz
 }
 
 func (q *Queries) Publish(ctx context.Context, arg PublishParams) (int64, error) {
-	result, err := q.db.Exec(ctx, publish, arg.ID, arg.DoctorProfileID, arg.PublishedAt)
+	result, err := q.db.Exec(ctx, publish,
+		arg.PublishedAt,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.DoctorProfileID,
+	)
 	if err != nil {
 		return 0, err
 	}

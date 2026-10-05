@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"tibi/internal/doctorposts/updatepost/db"
 	"tibi/internal/platform/database"
@@ -38,14 +39,43 @@ func (s *Service) Execute(ctx context.Context, userID, postID int64, cmd Command
 		}
 		return nil, httpx.Internal(err)
 	}
-	row, err := q.UpdatePost(ctx, db.UpdateParams{
+
+	// ✅ FIX: تحويل *string إلى pgtype.Text
+	titleText := pgtype.Text{Valid: false}
+	if cmd.Title != nil {
+		titleText = pgtype.Text{String: *cmd.Title, Valid: true}
+	}
+
+	contentText := pgtype.Text{Valid: false}
+	if cmd.Content != nil {
+		contentText = pgtype.Text{String: *cmd.Content, Valid: true}
+	}
+
+	excerptText := pgtype.Text{Valid: false}
+	if cmd.Excerpt != nil {
+		excerptText = pgtype.Text{String: *cmd.Excerpt, Valid: true}
+	}
+
+	coverImageText := pgtype.Text{Valid: false}
+	if cmd.CoverImageURL != nil {
+		coverImageText = pgtype.Text{String: *cmd.CoverImageURL, Valid: true}
+	}
+
+	// ✅ FIX: تحويل *string إلى db.NullPostType
+	nullPostType := db.NullPostType{Valid: false}
+	if cmd.Type != nil {
+		pt := db.PostType(*cmd.Type)
+		nullPostType = db.NullPostType{PostType: pt, Valid: true}
+	}
+
+	row, err := q.UpdatePost(ctx, db.UpdatePostParams{
 		ID:              postID,
 		DoctorProfileID: profileID,
-		Title:           cmd.Title,
-		Content:         cmd.Content,
-		Excerpt:         cmd.Excerpt,
-		Type:            cmd.Type,
-		CoverImageURL:   cmd.CoverImageURL,
+		Title:           titleText,
+		Content:         contentText,
+		Excerpt:         excerptText,
+		Type:            nullPostType,
+		CoverImageUrl:   coverImageText, // ✅ الحرف 'u' صغير كما يولدها sqlc
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -53,5 +83,9 @@ func (s *Service) Execute(ctx context.Context, userID, postID int64, cmd Command
 		}
 		return nil, httpx.Internal(err)
 	}
-	return &Response{ID: row.ID, UpdatedAt: row.UpdatedAt}, nil
+
+	return &Response{
+		ID:        row.ID,
+		UpdatedAt: row.UpdatedAt.Time, // ✅ استخراج time.Time
+	}, nil
 }

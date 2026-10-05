@@ -7,6 +7,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	commcontracts "tibi/internal/communication/contracts"
+	commnotify "tibi/internal/communication/notify"
 	"tibi/internal/platform/database"
 	"tibi/internal/platform/httpx"
 	"tibi/internal/platform/ws"
@@ -20,11 +22,12 @@ type Service struct {
 	db       *database.DB
 	hub      ws.Hub
 	snapshot *getsessionqueue.Service
+	notif    commcontracts.API
 	clock    func() time.Time
 }
 
-func NewService(db *database.DB, hub ws.Hub, snapshot *getsessionqueue.Service) *Service {
-	return &Service{db: db, hub: hub, snapshot: snapshot, clock: time.Now}
+func NewService(db *database.DB, hub ws.Hub, snapshot *getsessionqueue.Service, notif commcontracts.API) *Service {
+	return &Service{db: db, hub: hub, snapshot: snapshot, notif: notif, clock: time.Now}
 }
 
 type Response struct {
@@ -88,6 +91,14 @@ func (s *Service) Execute(ctx context.Context, userID, entryID int64) (*Response
 		patientUserID = row.PatientUserID
 		queueNumber = entry.QueueNumber
 		resp = entryToResponse(entry)
+
+		// Inside tx: create the notification row (commits/rolls back with the
+		// call). The hub signal fires after commit.
+		if s.notif != nil {
+			if err := commnotify.QueueCalled(ctx, s.notif, patientUserID, entryID, queueNumber); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	if err != nil {
@@ -97,6 +108,10 @@ func (s *Service) Execute(ctx context.Context, userID, entryID int64) (*Response
 		ws.Event{Type: "QueueEntryCalled", Payload: map[string]any{"entry_id": entryID, "queue_number": queueNumber}},
 		ws.Event{Type: "QueueEntryStatusChanged", Payload: map[string]any{"entry_id": entryID, "status": "Called"}},
 	)
+	// Durable signal: tell the patient to refetch /notifications.
+	if s.hub != nil && patientUserID != 0 {
+		s.hub.SendToUser(patientUserID, ws.Event{Type: "NotificationCreated", Payload: nil})
+	}
 	return resp, nil
 }
 

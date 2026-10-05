@@ -24,7 +24,12 @@ func (s *Service) Execute(ctx context.Context, userID, postID int64) error {
 		}
 		return httpx.Internal(err)
 	}
-	n, err := q.SoftDelete(ctx, postID, profileID)
+
+	// ✅ FIX: استخدام db.SoftDeleteParams بدلاً من الوسائط المتعددة
+	n, err := q.SoftDelete(ctx, db.SoftDeleteParams{
+		ID:              postID,
+		DoctorProfileID: profileID,
+	})
 	if err != nil {
 		return httpx.Internal(err)
 	}

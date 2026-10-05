@@ -9,10 +9,11 @@ SELECT
     d.currency,
     d.average_rating::text   AS average_rating,
     d.rating_count,
+    u.profile_image_file_id, -- ✅ FIXED: Removed duplicate profile_image_url
     u.profile_image_url,
     d.created_at
 FROM doctors_profiles d
-JOIN identity_users u ON u.id = d.user_id AND u.deleted_at IS NULL
+         JOIN identity_users u ON u.id = d.user_id AND u.deleted_at IS NULL
 WHERE d.deleted_at IS NULL
   AND d.verification_status = 'Verified'
   AND (sqlc.narg('q')::text IS NULL
@@ -31,7 +32,7 @@ WHERE d.deleted_at IS NULL
   AND (sqlc.narg('cursor_rating')::numeric IS NULL
        OR (d.average_rating, d.id) < (sqlc.narg('cursor_rating')::numeric, sqlc.narg('cursor_id')::bigint))
 ORDER BY d.average_rating DESC, d.id DESC
-LIMIT sqlc.arg('limit_count');
+    LIMIT sqlc.arg('limit_count');
 
 -- name: SearchDoctorsByFeeAsc :many
 SELECT
@@ -40,10 +41,11 @@ SELECT
     d.currency,
     d.average_rating::text   AS average_rating,
     d.rating_count,
+    u.profile_image_file_id, -- ✅ ADDED
     u.profile_image_url,
     d.created_at
 FROM doctors_profiles d
-JOIN identity_users u ON u.id = d.user_id AND u.deleted_at IS NULL
+         JOIN identity_users u ON u.id = d.user_id AND u.deleted_at IS NULL
 WHERE d.deleted_at IS NULL
   AND d.verification_status = 'Verified'
   AND (sqlc.narg('q')::text IS NULL
@@ -63,7 +65,7 @@ WHERE d.deleted_at IS NULL
        OR d.consultation_fee > sqlc.narg('cursor_fee')
        OR (d.consultation_fee = sqlc.narg('cursor_fee') AND d.id < sqlc.narg('cursor_id')))
 ORDER BY d.consultation_fee ASC, d.id DESC
-LIMIT sqlc.arg('limit_count');
+    LIMIT sqlc.arg('limit_count');
 
 -- name: SearchDoctorsByFeeDesc :many
 SELECT
@@ -72,10 +74,11 @@ SELECT
     d.currency,
     d.average_rating::text   AS average_rating,
     d.rating_count,
+    u.profile_image_file_id, -- ✅ ADDED
     u.profile_image_url,
     d.created_at
 FROM doctors_profiles d
-JOIN identity_users u ON u.id = d.user_id AND u.deleted_at IS NULL
+         JOIN identity_users u ON u.id = d.user_id AND u.deleted_at IS NULL
 WHERE d.deleted_at IS NULL
   AND d.verification_status = 'Verified'
   AND (sqlc.narg('q')::text IS NULL
@@ -94,7 +97,7 @@ WHERE d.deleted_at IS NULL
   AND (sqlc.narg('cursor_fee')::numeric IS NULL
        OR (d.consultation_fee, d.id) < (sqlc.narg('cursor_fee')::numeric, sqlc.narg('cursor_id')::bigint))
 ORDER BY d.consultation_fee DESC, d.id DESC
-LIMIT sqlc.arg('limit_count');
+    LIMIT sqlc.arg('limit_count');
 
 -- name: SearchDoctorsByCreatedAt :many
 SELECT
@@ -103,10 +106,11 @@ SELECT
     d.currency,
     d.average_rating::text   AS average_rating,
     d.rating_count,
+    u.profile_image_file_id, -- ✅ ADDED
     u.profile_image_url,
     d.created_at
 FROM doctors_profiles d
-JOIN identity_users u ON u.id = d.user_id AND u.deleted_at IS NULL
+         JOIN identity_users u ON u.id = d.user_id AND u.deleted_at IS NULL
 WHERE d.deleted_at IS NULL
   AND d.verification_status = 'Verified'
   AND (sqlc.narg('q')::text IS NULL
@@ -125,12 +129,12 @@ WHERE d.deleted_at IS NULL
   AND (sqlc.narg('cursor_created_at')::timestamptz IS NULL
        OR (d.created_at, d.id) < (sqlc.narg('cursor_created_at')::timestamptz, sqlc.narg('cursor_id')::bigint))
 ORDER BY d.created_at DESC, d.id DESC
-LIMIT sqlc.arg('limit_count');
+    LIMIT sqlc.arg('limit_count');
 
 -- name: SpecialtiesForDoctors :many
 SELECT dps.doctor_profile_id, s.id AS specialty_id, s.name
 FROM doctors_profile_specialties dps
-JOIN doctors_specialties s ON s.id = dps.specialty_id
+         JOIN doctors_specialties s ON s.id = dps.specialty_id
 WHERE dps.doctor_profile_id = ANY(sqlc.arg('doctor_ids')::bigint[])
 ORDER BY s.name;
 

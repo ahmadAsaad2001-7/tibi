@@ -55,28 +55,42 @@ func (s *Service) Execute(ctx context.Context, doctorProfileID int64, date time.
 		}
 	}
 
-	exceptionRows, err := q.ExceptionsOnDate(ctx, doctorProfileID, date)
+	// ✅ FIX 1: استخدام ExceptionsOnDateParams
+	exceptionRows, err := q.ExceptionsOnDate(ctx, db.ExceptionsOnDateParams{
+		DoctorProfileID: doctorProfileID,
+		ExceptionDate:   pgtype.Date{Time: date, Valid: true},
+	})
 	if err != nil {
 		return nil, httpx.Internal(err)
 	}
 	exceptions := make([]scheduleexception.Exception, len(exceptionRows))
 	for i, e := range exceptionRows {
 		exceptions[i] = scheduleexception.Exception{
-			Date:     e.ExceptionDate,
+			Date:     e.ExceptionDate.Time, // ✅ FIX 2: استخراج .Time من pgtype.Date
 			FromTime: timeFromPg(e.FromTime),
 			ToTime:   timeFromPg(e.ToTime),
 			Type:     scheduleexception.Type(e.Type),
 		}
 	}
 
-	bookedRows, err := q.BookedOnDate(ctx, doctorProfileID, date, date.AddDate(0, 0, 1))
+	// ✅ FIX 3: استخدام BookedOnDateParams
+	bookedRows, err := q.BookedOnDate(ctx, db.BookedOnDateParams{
+		DoctorProfileID: doctorProfileID,
+		FromTs:          pgtype.Timestamptz{Time: date, Valid: true},
+		ToTs:            pgtype.Timestamptz{Time: date.AddDate(0, 0, 1), Valid: true},
+	})
 	if err != nil {
 		return nil, httpx.Internal(err)
 	}
+
 	booked := make([]doctorprofile.TimeOfDay, len(bookedRows))
 	for i, at := range bookedRows {
-		u := at.UTC()
-		booked[i] = doctorprofile.TimeOfDay{Hour: u.Hour(), Minute: u.Minute()}
+		// ✅ FIX 4: at هو pgtype.Timestamptz، نحتاج لاستخراج .Time قبل استدعاء UTC()
+		u := at.Time.UTC()
+		booked[i] = doctorprofile.TimeOfDay{
+			Hour:   u.Hour(),
+			Minute: u.Minute(),
+		}
 	}
 
 	slots := availability.ForDate(date, blocks, exceptions, booked)
@@ -84,6 +98,7 @@ func (s *Service) Execute(ctx context.Context, doctorProfileID int64, date time.
 	for i, slot := range slots {
 		out[i] = SlotOut{Start: slot.Start.String(), DurationMinutes: int(slot.Duration / time.Minute)}
 	}
+
 	return &Response{Date: date.Format("2006-01-02"), Slots: out}, nil
 }
 

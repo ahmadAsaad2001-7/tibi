@@ -154,10 +154,11 @@ SELECT
     d.currency,
     d.average_rating::text   AS average_rating,
     d.rating_count,
+    u.profile_image_file_id, -- ✅ ADDED
     u.profile_image_url,
     d.created_at
 FROM doctors_profiles d
-JOIN identity_users u ON u.id = d.user_id AND u.deleted_at IS NULL
+         JOIN identity_users u ON u.id = d.user_id AND u.deleted_at IS NULL
 WHERE d.deleted_at IS NULL
   AND d.verification_status = 'Verified'
   AND ($1::text IS NULL
@@ -176,7 +177,7 @@ WHERE d.deleted_at IS NULL
   AND ($6::timestamptz IS NULL
        OR (d.created_at, d.id) < ($6::timestamptz, $7::bigint))
 ORDER BY d.created_at DESC, d.id DESC
-LIMIT $8
+    LIMIT $8
 `
 
 type SearchDoctorsByCreatedAtParams struct {
@@ -191,16 +192,17 @@ type SearchDoctorsByCreatedAtParams struct {
 }
 
 type SearchDoctorsByCreatedAtRow struct {
-	ID              int64
-	FullName        string
-	Bio             string
-	ClinicName      string
-	ConsultationFee string
-	Currency        string
-	AverageRating   string
-	RatingCount     int32
-	ProfileImageUrl pgtype.Text
-	CreatedAt       pgtype.Timestamptz
+	ID                 int64
+	FullName           string
+	Bio                string
+	ClinicName         string
+	ConsultationFee    string
+	Currency           string
+	AverageRating      string
+	RatingCount        int32
+	ProfileImageFileID pgtype.Int8
+	ProfileImageUrl    pgtype.Text
+	CreatedAt          pgtype.Timestamptz
 }
 
 func (q *Queries) SearchDoctorsByCreatedAt(ctx context.Context, arg SearchDoctorsByCreatedAtParams) ([]SearchDoctorsByCreatedAtRow, error) {
@@ -230,6 +232,7 @@ func (q *Queries) SearchDoctorsByCreatedAt(ctx context.Context, arg SearchDoctor
 			&i.Currency,
 			&i.AverageRating,
 			&i.RatingCount,
+			&i.ProfileImageFileID,
 			&i.ProfileImageUrl,
 			&i.CreatedAt,
 		); err != nil {
@@ -250,10 +253,11 @@ SELECT
     d.currency,
     d.average_rating::text   AS average_rating,
     d.rating_count,
+    u.profile_image_file_id, -- ✅ ADDED
     u.profile_image_url,
     d.created_at
 FROM doctors_profiles d
-JOIN identity_users u ON u.id = d.user_id AND u.deleted_at IS NULL
+         JOIN identity_users u ON u.id = d.user_id AND u.deleted_at IS NULL
 WHERE d.deleted_at IS NULL
   AND d.verification_status = 'Verified'
   AND ($1::text IS NULL
@@ -273,7 +277,7 @@ WHERE d.deleted_at IS NULL
        OR d.consultation_fee > $6
        OR (d.consultation_fee = $6 AND d.id < $7))
 ORDER BY d.consultation_fee ASC, d.id DESC
-LIMIT $8
+    LIMIT $8
 `
 
 type SearchDoctorsByFeeAscParams struct {
@@ -288,16 +292,17 @@ type SearchDoctorsByFeeAscParams struct {
 }
 
 type SearchDoctorsByFeeAscRow struct {
-	ID              int64
-	FullName        string
-	Bio             string
-	ClinicName      string
-	ConsultationFee string
-	Currency        string
-	AverageRating   string
-	RatingCount     int32
-	ProfileImageUrl pgtype.Text
-	CreatedAt       pgtype.Timestamptz
+	ID                 int64
+	FullName           string
+	Bio                string
+	ClinicName         string
+	ConsultationFee    string
+	Currency           string
+	AverageRating      string
+	RatingCount        int32
+	ProfileImageFileID pgtype.Int8
+	ProfileImageUrl    pgtype.Text
+	CreatedAt          pgtype.Timestamptz
 }
 
 func (q *Queries) SearchDoctorsByFeeAsc(ctx context.Context, arg SearchDoctorsByFeeAscParams) ([]SearchDoctorsByFeeAscRow, error) {
@@ -327,6 +332,7 @@ func (q *Queries) SearchDoctorsByFeeAsc(ctx context.Context, arg SearchDoctorsBy
 			&i.Currency,
 			&i.AverageRating,
 			&i.RatingCount,
+			&i.ProfileImageFileID,
 			&i.ProfileImageUrl,
 			&i.CreatedAt,
 		); err != nil {
@@ -347,10 +353,11 @@ SELECT
     d.currency,
     d.average_rating::text   AS average_rating,
     d.rating_count,
+    u.profile_image_file_id, -- ✅ ADDED
     u.profile_image_url,
     d.created_at
 FROM doctors_profiles d
-JOIN identity_users u ON u.id = d.user_id AND u.deleted_at IS NULL
+         JOIN identity_users u ON u.id = d.user_id AND u.deleted_at IS NULL
 WHERE d.deleted_at IS NULL
   AND d.verification_status = 'Verified'
   AND ($1::text IS NULL
@@ -369,7 +376,7 @@ WHERE d.deleted_at IS NULL
   AND ($6::numeric IS NULL
        OR (d.consultation_fee, d.id) < ($6::numeric, $7::bigint))
 ORDER BY d.consultation_fee DESC, d.id DESC
-LIMIT $8
+    LIMIT $8
 `
 
 type SearchDoctorsByFeeDescParams struct {
@@ -384,16 +391,17 @@ type SearchDoctorsByFeeDescParams struct {
 }
 
 type SearchDoctorsByFeeDescRow struct {
-	ID              int64
-	FullName        string
-	Bio             string
-	ClinicName      string
-	ConsultationFee string
-	Currency        string
-	AverageRating   string
-	RatingCount     int32
-	ProfileImageUrl pgtype.Text
-	CreatedAt       pgtype.Timestamptz
+	ID                 int64
+	FullName           string
+	Bio                string
+	ClinicName         string
+	ConsultationFee    string
+	Currency           string
+	AverageRating      string
+	RatingCount        int32
+	ProfileImageFileID pgtype.Int8
+	ProfileImageUrl    pgtype.Text
+	CreatedAt          pgtype.Timestamptz
 }
 
 func (q *Queries) SearchDoctorsByFeeDesc(ctx context.Context, arg SearchDoctorsByFeeDescParams) ([]SearchDoctorsByFeeDescRow, error) {
@@ -423,6 +431,7 @@ func (q *Queries) SearchDoctorsByFeeDesc(ctx context.Context, arg SearchDoctorsB
 			&i.Currency,
 			&i.AverageRating,
 			&i.RatingCount,
+			&i.ProfileImageFileID,
 			&i.ProfileImageUrl,
 			&i.CreatedAt,
 		); err != nil {
@@ -444,10 +453,11 @@ SELECT
     d.currency,
     d.average_rating::text   AS average_rating,
     d.rating_count,
+    u.profile_image_file_id, -- ✅ FIXED: Removed duplicate profile_image_url
     u.profile_image_url,
     d.created_at
 FROM doctors_profiles d
-JOIN identity_users u ON u.id = d.user_id AND u.deleted_at IS NULL
+         JOIN identity_users u ON u.id = d.user_id AND u.deleted_at IS NULL
 WHERE d.deleted_at IS NULL
   AND d.verification_status = 'Verified'
   AND ($1::text IS NULL
@@ -466,7 +476,7 @@ WHERE d.deleted_at IS NULL
   AND ($6::numeric IS NULL
        OR (d.average_rating, d.id) < ($6::numeric, $7::bigint))
 ORDER BY d.average_rating DESC, d.id DESC
-LIMIT $8
+    LIMIT $8
 `
 
 type SearchDoctorsByRatingParams struct {
@@ -481,16 +491,17 @@ type SearchDoctorsByRatingParams struct {
 }
 
 type SearchDoctorsByRatingRow struct {
-	ID              int64
-	FullName        string
-	Bio             string
-	ClinicName      string
-	ConsultationFee string
-	Currency        string
-	AverageRating   string
-	RatingCount     int32
-	ProfileImageUrl pgtype.Text
-	CreatedAt       pgtype.Timestamptz
+	ID                 int64
+	FullName           string
+	Bio                string
+	ClinicName         string
+	ConsultationFee    string
+	Currency           string
+	AverageRating      string
+	RatingCount        int32
+	ProfileImageFileID pgtype.Int8
+	ProfileImageUrl    pgtype.Text
+	CreatedAt          pgtype.Timestamptz
 }
 
 // Cross-module read: joins identity_users (Identity) with
@@ -523,6 +534,7 @@ func (q *Queries) SearchDoctorsByRating(ctx context.Context, arg SearchDoctorsBy
 			&i.Currency,
 			&i.AverageRating,
 			&i.RatingCount,
+			&i.ProfileImageFileID,
 			&i.ProfileImageUrl,
 			&i.CreatedAt,
 		); err != nil {
@@ -539,7 +551,7 @@ func (q *Queries) SearchDoctorsByRating(ctx context.Context, arg SearchDoctorsBy
 const specialtiesForDoctors = `-- name: SpecialtiesForDoctors :many
 SELECT dps.doctor_profile_id, s.id AS specialty_id, s.name
 FROM doctors_profile_specialties dps
-JOIN doctors_specialties s ON s.id = dps.specialty_id
+         JOIN doctors_specialties s ON s.id = dps.specialty_id
 WHERE dps.doctor_profile_id = ANY($1::bigint[])
 ORDER BY s.name
 `

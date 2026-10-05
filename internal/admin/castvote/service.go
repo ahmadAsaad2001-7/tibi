@@ -3,10 +3,12 @@ package castvote
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"tibi/internal/admin/adminvote"
 	"tibi/internal/admin/castvote/db"
@@ -57,6 +59,7 @@ func (s *Service) Execute(ctx context.Context, cmd Command) (*Response, error) {
 			return httpx.Internal(err)
 		}
 
+		// ✅ هنا سيعيد []db.AdminVoteParticipant مباشرة
 		participants, err := q.GetVoteParticipants(ctx, cmd.VoteID)
 		if err != nil {
 			return httpx.Internal(err)
@@ -69,16 +72,26 @@ func (s *Service) Execute(ctx context.Context, cmd Command) (*Response, error) {
 			return mapDomainError(err)
 		}
 
-		// Persist the vote row first. If the xmin guard fails, another
-		// admin voted between our read and our write. Return 409 without
-		// inserting a participant.
+		resolvedAtTz := pgtype.Timestamptz{Valid: false}
+		if vote.ResolvedAt != nil {
+			resolvedAtTz = pgtype.Timestamptz{Time: *vote.ResolvedAt, Valid: true}
+		}
+
+		var xmin pgtype.Uint32
+		if row.Xmin != "" {
+			val, err := strconv.ParseUint(row.Xmin, 10, 32)
+			if err == nil {
+				xmin = pgtype.Uint32{Uint32: uint32(val), Valid: true}
+			}
+		}
+
 		affected, err := q.UpdateVoteTally(ctx, db.UpdateVoteTallyParams{
 			ID:           vote.ID,
-			VotesFor:     vote.VotesFor,
-			VotesAgainst: vote.VotesAgainst,
-			Status:       string(vote.Status),
-			ResolvedAt:   vote.ResolvedAt,
-			Xmin:         row.Xmin,
+			VotesFor:     int32(vote.VotesFor),
+			VotesAgainst: int32(vote.VotesAgainst),
+			Status:       db.VoteStatus(vote.Status),
+			ResolvedAt:   resolvedAtTz,
+			Xmin:         xmin, // ✅ مباشر كـ string كما يتوقعه الاستعلام
 		})
 		if err != nil {
 			return httpx.Internal(err)
@@ -87,21 +100,15 @@ func (s *Service) Execute(ctx context.Context, cmd Command) (*Response, error) {
 			return httpx.Conflict("vote was modified by another request; retry")
 		}
 
-		// Append the participant. Unique constraint on (vote, admin) is
-		// the race guard; the service already checked for duplicates.
 		if err := q.InsertVoteParticipant(ctx, db.InsertVoteParticipantParams{
 			AdminVoteID: vote.ID,
 			AdminUserID: cmd.AdminUserID,
-			Vote:        string(cmd.Choice),
-			VotedAt:     now,
+			Vote:        db.VoteChoice(cmd.Choice),
+			VotedAt:     pgtype.Timestamptz{Time: now, Valid: true},
 		}); err != nil {
 			return httpx.Internal(err)
 		}
 
-		// If the vote just resolved, apply the action. This is a cross-module
-		// write and it shares this transaction. If any step fails, the vote
-		// rolls back — there is no such thing as a resolved vote whose
-		// action did not run.
 		applied := false
 		if choice := vote.Resolution(); choice != nil && *choice == adminvote.ChoiceFor {
 			if err := s.applyAction(ctx, vote); err != nil {
@@ -136,12 +143,7 @@ func (s *Service) applyAction(ctx context.Context, vote *adminvote.Vote) error {
 		}); err != nil {
 			return err
 		}
-		// May be a no-op if the user is already a Doctor, in which case
-		// the guard inside setRole returns 409 — which we do not want for
-		// an idempotent verify. Handle by attempting demote-on-failure.
 		if err := s.identity.PromotePendingDoctorToDoctor(ctx, vote.TargetUserID); err != nil {
-			// If the role is already Doctor, this is fine (idempotent verify).
-			// If the error is anything else, propagate.
 			if !isRoleAlreadyDoctor(err) {
 				return err
 			}
@@ -163,13 +165,13 @@ func (s *Service) applyAction(ctx context.Context, vote *adminvote.Vote) error {
 		return nil
 
 	case adminvote.ActionBanUser:
-		// Slice 4.
 		return httpx.Unprocessable("BanUser is not yet supported")
 	}
 	return httpx.Internal(errors.New("unknown action type"))
 }
 
-func hydrateVote(row db.GetVoteForUpdateRow, participants []db.GetVoteParticipantsRow) *adminvote.Vote {
+// ✅ FIX الجذري: تغيير النوع من GetVoteParticipantsRow إلى AdminVoteParticipant
+func hydrateVote(row db.GetVoteForUpdateRow, participants []db.AdminVoteParticipant) *adminvote.Vote {
 	parts := make([]adminvote.Participant, len(participants))
 	for i, p := range participants {
 		parts[i] = adminvote.Participant{
@@ -177,19 +179,26 @@ func hydrateVote(row db.GetVoteForUpdateRow, participants []db.GetVoteParticipan
 			AdminVoteID: p.AdminVoteID,
 			AdminUserID: p.AdminUserID,
 			Vote:        adminvote.Choice(p.Vote),
-			VotedAt:     p.VotedAt,
+			VotedAt:     p.VotedAt.Time,
 		}
 	}
+
+	var resolvedAt *time.Time
+	if row.ResolvedAt.Valid {
+		t := row.ResolvedAt.Time
+		resolvedAt = &t
+	}
+
 	return &adminvote.Vote{
 		ID:            row.ID,
 		ActionType:    adminvote.ActionType(row.ActionType),
 		TargetUserID:  row.TargetUserID,
 		Status:        adminvote.Status(row.Status),
-		RequiredVotes: row.RequiredVotes,
-		VotesFor:      row.VotesFor,
-		VotesAgainst:  row.VotesAgainst,
-		ExpiresAt:     row.ExpiresAt,
-		ResolvedAt:    row.ResolvedAt,
+		RequiredVotes: int(row.RequiredVotes),
+		VotesFor:      int(row.VotesFor),
+		VotesAgainst:  int(row.VotesAgainst),
+		ExpiresAt:     row.ExpiresAt.Time,
+		ResolvedAt:    resolvedAt,
 		Participants:  parts,
 	}
 }

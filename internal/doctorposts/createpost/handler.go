@@ -22,6 +22,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, httpx.Unauthenticated("not authenticated"))
 		return
 	}
+
 	var cmd Command
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
@@ -33,6 +34,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, httpx.ValidationFailed(validationDetails(err)))
 		return
 	}
+
 	resp, err := h.svc.Execute(r.Context(), u.UserID, cmd)
 	if err != nil {
 		httpx.Error(w, r, err)

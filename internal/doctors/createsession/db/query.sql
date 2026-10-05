@@ -1,41 +1,33 @@
--- name: GetOrCreateSession :one
-INSERT INTO doctors_clinic_sessions (
-    doctor_profile_id, session_date, start_time, end_time
-) VALUES ($1, $2, $3::time, $4::time)
-ON CONFLICT (doctor_profile_id, session_date, start_time)
-DO UPDATE SET end_time = doctors_clinic_sessions.end_time
-RETURNING id, created_at;
-
--- name: GetSessionForBlock :one
-SELECT id FROM doctors_clinic_sessions
-WHERE doctor_profile_id = $1
-  AND session_date = $2
-  AND start_time = $3::time;
-
--- name: GetDoctorProfileIDForUser :one
-SELECT id FROM doctors_profiles
-WHERE user_id = $1 AND deleted_at IS NULL;
-
 -- name: GetDoctorProfileByID :one
 SELECT id, verification_status
 FROM doctors_profiles
-WHERE id = $1 AND deleted_at IS NULL;
+WHERE id = @id AND deleted_at IS NULL;
+
+-- name: GetOrCreateSession :one
+INSERT INTO doctors_clinic_sessions (
+    doctor_profile_id, session_date, start_time, end_time
+) VALUES (
+             @doctor_profile_id, @session_date, @start_time::time, @end_time::time
+         )
+    ON CONFLICT (doctor_profile_id, session_date, start_time)
+DO UPDATE SET end_time = doctors_clinic_sessions.end_time
+           RETURNING id, created_at;
 
 -- name: GetDoctorBlockForDate :one
 SELECT start_time, end_time, slot_duration_minutes
 FROM doctors_weekly_schedules
-WHERE doctor_profile_id = $1
-  AND day_of_week = EXTRACT(DOW FROM $2::date)
+WHERE doctor_profile_id = @doctor_profile_id
+  AND day_of_week = EXTRACT(DOW FROM @date::date)
   AND is_active
-  AND start_time <= $3::time
-  AND end_time >= $4::time
+  AND start_time <= @start_time::time
+  AND end_time >= @end_time::time
 LIMIT 1;
 
 -- name: GetClosedException :one
 SELECT id FROM doctors_schedule_exceptions
-WHERE doctor_profile_id = $1
-  AND exception_date = $2
-  AND from_time <= $3::time
-  AND to_time >= $4::time
+WHERE doctor_profile_id = @doctor_profile_id
+  AND exception_date = @exception_date
+  AND from_time <= @from_time::time
+  AND to_time >= @to_time::time
   AND type = 'Closed'
 LIMIT 1;

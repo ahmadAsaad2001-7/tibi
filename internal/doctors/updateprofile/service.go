@@ -3,6 +3,7 @@ package updateprofile
 import (
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -47,7 +48,7 @@ func (s *Service) Execute(ctx context.Context, userID int64, cmd Command) (*Resp
 			return httpx.Internal(err)
 		}
 
-		// Hydrate aggregate.
+		// ✅ FIX 1 & 2 & 3: تحويل أنواع pgtype إلى أنواع Go العادية
 		profile := &doctorprofile.Profile{
 			ID:                          row.ID,
 			UserID:                      row.UserID,
@@ -57,12 +58,12 @@ func (s *Service) Execute(ctx context.Context, userID int64, cmd Command) (*Resp
 			Currency:                    row.Currency,
 			ClinicName:                  row.ClinicName,
 			ClinicAddress:               row.ClinicAddress,
-			MedicalLicenseNumber:        row.MedicalLicenseNumber,
+			MedicalLicenseNumber:        pgTextToPtr(row.MedicalLicenseNumber), // ✅ تحويل pgtype.Text إلى *string
 			VerificationStatus:          doctorprofile.VerificationStatus(row.VerificationStatus),
-			VerificationRejectionReason: row.VerificationRejectionReason,
+			VerificationRejectionReason: pgTextToPtr(row.VerificationRejectionReason), // ✅ تحويل pgtype.Text إلى *string
 			SubmittedAt:                 timePtr(row.SubmittedAt),
 			AverageRating:               row.AverageRating,
-			RatingCount:                 row.RatingCount,
+			RatingCount:                 int(row.RatingCount), // ✅ تحويل int32 إلى int
 		}
 
 		ids, err := q.GetSpecialtyIDsForDoctor(ctx, row.ID)
@@ -75,7 +76,6 @@ func (s *Service) Execute(ctx context.Context, userID int64, cmd Command) (*Resp
 		if cmd.SpecialtyIDs != nil {
 			unique := dedupe(*cmd.SpecialtyIDs)
 			if len(unique) == 0 {
-				// Empty array is allowed: clears specialties.
 				cmd.SpecialtyIDs = &unique
 			} else {
 				count, err := q.SpecialtyIDsExist(ctx, unique)
@@ -102,16 +102,31 @@ func (s *Service) Execute(ctx context.Context, userID int64, cmd Command) (*Resp
 			SpecialtyIDs:         cmd.SpecialtyIDs,
 		})
 
+		// ✅ FIX 6: تحويل row.Xmin (string) إلى pgtype.Uint32
+		var xmin pgtype.Uint32
+		if row.Xmin != "" {
+			val, err := strconv.ParseUint(row.Xmin, 10, 32)
+			if err == nil {
+				xmin = pgtype.Uint32{Uint32: uint32(val), Valid: true}
+			}
+		}
+
+		// ✅ FIX 4 & 5: تحويل ConsultationFee إلى pgtype.Numeric و MedicalLicenseNumber إلى pgtype.Text
+		var fee pgtype.Numeric
+		if profile.ConsultationFee != "" {
+			_ = fee.Scan(profile.ConsultationFee)
+		}
+
 		// Persist with optimistic concurrency.
 		affected, err := q.UpdateDoctorProfile(ctx, db.UpdateDoctorProfileParams{
 			ID:                   profile.ID,
 			Bio:                  profile.Bio,
-			ConsultationFee:      profile.ConsultationFee,
+			ConsultationFee:      fee, // ✅ تحويل string إلى pgtype.Numeric
 			Currency:             profile.Currency,
 			ClinicName:           profile.ClinicName,
 			ClinicAddress:        profile.ClinicAddress,
-			MedicalLicenseNumber: profile.MedicalLicenseNumber,
-			Xmin:                 row.Xmin,
+			MedicalLicenseNumber: ptrToPgText(profile.MedicalLicenseNumber), // ✅ تحويل *string إلى pgtype.Text
+			Xmin:                 xmin,                                      // ✅ استخدام المتغير المحول
 		})
 		if err != nil {
 			return httpx.Internal(err)
@@ -162,12 +177,30 @@ func (s *Service) Execute(ctx context.Context, userID int64, cmd Command) (*Resp
 	return resp, nil
 }
 
+// ==========================================
+// ✅ دوال مساعدة لتحويل الأنواع بأمان
+// ==========================================
+
 func timePtr(t pgtype.Timestamptz) *time.Time {
 	if !t.Valid {
 		return nil
 	}
 	v := t.Time
 	return &v
+}
+
+func pgTextToPtr(t pgtype.Text) *string {
+	if !t.Valid {
+		return nil
+	}
+	return &t.String
+}
+
+func ptrToPgText(s *string) pgtype.Text {
+	if s == nil {
+		return pgtype.Text{Valid: false}
+	}
+	return pgtype.Text{String: *s, Valid: true}
 }
 
 func dedupe(ids []int64) []int64 {

@@ -38,8 +38,8 @@ func (s *Service) Execute(ctx context.Context, userID int64) (*Response, error) 
 	for i, r := range rows {
 		items[i] = Item{
 			ID:               r.ID,
-			Status:           r.Status,
-			ScheduledAt:      r.ScheduledAt,
+			Status:           string(r.Status),
+			ScheduledAt:      r.ScheduledAt.Time,
 			DurationMinutes:  int(r.DurationMinutes),
 			IsUrgent:         r.IsUrgent,
 			DoctorProfileID:  r.DoctorProfileID,

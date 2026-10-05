@@ -8,6 +8,7 @@ import (
 
 	"tibi/internal/doctors/availability"
 	"tibi/internal/doctors/search/db"
+	filescontracts "tibi/internal/files/contracts" // ✅ Added
 	"tibi/internal/platform/database"
 	"tibi/internal/platform/httpx"
 )
@@ -20,25 +21,27 @@ const (
 
 type Service struct {
 	db    *database.DB
+	files filescontracts.API // ✅ Added as per Slice 12b
 	clock func() time.Time
 }
 
-func NewService(db *database.DB) *Service {
-	return &Service{db: db, clock: time.Now}
+func NewService(db *database.DB, files filescontracts.API) *Service {
+	return &Service{db: db, files: files, clock: time.Now}
 }
 
-// searchRow is our internal unified row type to avoid duplicating logic for every sqlc generated row.
+// ✅ Updated to hold pgtype fields for proper resolution later
 type searchRow struct {
-	ID              int64
-	FullName        string
-	Bio             string
-	ClinicName      string
-	ConsultationFee string
-	Currency        string
-	AverageRating   string
-	RatingCount     int
-	ProfileImageURL *string
-	CreatedAt       time.Time
+	ID                 int64
+	FullName           string
+	Bio                string
+	ClinicName         string
+	ConsultationFee    string
+	Currency           string
+	AverageRating      string
+	RatingCount        int
+	ProfileImageFileID pgtype.Int8
+	ProfileImageUrl    pgtype.Text
+	CreatedAt          pgtype.Timestamptz
 }
 
 type Item struct {
@@ -81,7 +84,6 @@ func (s *Service) Execute(ctx context.Context, p Params) (*Response, error) {
 	q := db.New(s.db.Querier(ctx))
 	fetch := int32(p.Limit + 1)
 
-	// Helpers to convert input types to sqlc/pgtype types
 	textPtr := func(str *string) pgtype.Text {
 		if str == nil {
 			return pgtype.Text{Valid: false}
@@ -114,7 +116,9 @@ func (s *Service) Execute(ctx context.Context, p Params) (*Response, error) {
 				ID: r.ID, FullName: r.FullName, Bio: r.Bio, ClinicName: r.ClinicName,
 				ConsultationFee: r.ConsultationFee, Currency: r.Currency,
 				AverageRating: r.AverageRating, RatingCount: int(r.RatingCount),
-				ProfileImageURL: textToPtr(r.ProfileImageUrl), CreatedAt: r.CreatedAt.Time,
+				ProfileImageFileID: r.ProfileImageFileID, // ✅ Map directly
+				ProfileImageUrl:    r.ProfileImageUrl,    // ✅ Map directly
+				CreatedAt:          r.CreatedAt,
 			})
 		}
 
@@ -132,7 +136,9 @@ func (s *Service) Execute(ctx context.Context, p Params) (*Response, error) {
 				ID: r.ID, FullName: r.FullName, Bio: r.Bio, ClinicName: r.ClinicName,
 				ConsultationFee: r.ConsultationFee, Currency: r.Currency,
 				AverageRating: r.AverageRating, RatingCount: int(r.RatingCount),
-				ProfileImageURL: textToPtr(r.ProfileImageUrl), CreatedAt: r.CreatedAt.Time,
+				ProfileImageFileID: r.ProfileImageFileID,
+				ProfileImageUrl:    r.ProfileImageUrl,
+				CreatedAt:          r.CreatedAt,
 			})
 		}
 
@@ -150,7 +156,9 @@ func (s *Service) Execute(ctx context.Context, p Params) (*Response, error) {
 				ID: r.ID, FullName: r.FullName, Bio: r.Bio, ClinicName: r.ClinicName,
 				ConsultationFee: r.ConsultationFee, Currency: r.Currency,
 				AverageRating: r.AverageRating, RatingCount: int(r.RatingCount),
-				ProfileImageURL: textToPtr(r.ProfileImageUrl), CreatedAt: r.CreatedAt.Time,
+				ProfileImageFileID: r.ProfileImageFileID,
+				ProfileImageUrl:    r.ProfileImageUrl,
+				CreatedAt:          r.CreatedAt,
 			})
 		}
 
@@ -173,7 +181,9 @@ func (s *Service) Execute(ctx context.Context, p Params) (*Response, error) {
 				ID: r.ID, FullName: r.FullName, Bio: r.Bio, ClinicName: r.ClinicName,
 				ConsultationFee: r.ConsultationFee, Currency: r.Currency,
 				AverageRating: r.AverageRating, RatingCount: int(r.RatingCount),
-				ProfileImageURL: textToPtr(r.ProfileImageUrl), CreatedAt: r.CreatedAt.Time,
+				ProfileImageFileID: r.ProfileImageFileID,
+				ProfileImageUrl:    r.ProfileImageUrl,
+				CreatedAt:          r.CreatedAt,
 			})
 		}
 
@@ -184,6 +194,21 @@ func (s *Service) Execute(ctx context.Context, p Params) (*Response, error) {
 	hasMore := len(rows) > p.Limit
 	if hasMore {
 		rows = rows[:p.Limit]
+	}
+
+	// ✅ Batch-resolve file IDs to URLs (Slice 12b spec)
+	var fileIDs []int64
+	for _, r := range rows {
+		if r.ProfileImageFileID.Valid {
+			fileIDs = append(fileIDs, r.ProfileImageFileID.Int64)
+		}
+	}
+	urlByFileID := make(map[int64]string)
+	for _, fid := range fileIDs {
+		u, err := s.files.PresignGet(ctx, fid, 86400)
+		if err == nil {
+			urlByFileID[fid] = u
+		}
 	}
 
 	ids := make([]int64, len(rows))
@@ -229,10 +254,21 @@ func (s *Service) Execute(ctx context.Context, p Params) (*Response, error) {
 
 	items := make([]Item, len(rows))
 	for i, r := range rows {
+		// ✅ Resolve image URL per item based on batch results
+		var imageURL *string
+		if r.ProfileImageFileID.Valid {
+			if u, ok := urlByFileID[r.ProfileImageFileID.Int64]; ok {
+				imageURL = &u
+			}
+		} else if r.ProfileImageUrl.Valid {
+			imageURL = &r.ProfileImageUrl.String
+		}
+
 		item := Item{
 			ID: r.ID, FullName: r.FullName, ClinicName: r.ClinicName, Bio: r.Bio,
-			ProfileImageURL: r.ProfileImageURL, ConsultationFee: r.ConsultationFee,
-			Currency: r.Currency, AverageRating: r.AverageRating,
+			ProfileImageURL: imageURL, // ✅ Use resolved URL
+			ConsultationFee: r.ConsultationFee,
+			Currency:        r.Currency, AverageRating: r.AverageRating,
 			RatingCount: r.RatingCount, Specialties: specsByDoc[r.ID],
 		}
 		if slot, ok := availability.NextSlot(
@@ -252,7 +288,7 @@ func (s *Service) Execute(ctx context.Context, p Params) (*Response, error) {
 	return resp, nil
 }
 
-// Helper to convert pgtype.Text to *string
+// ✅ Helper functions preserved as requested
 func textToPtr(t pgtype.Text) *string {
 	if !t.Valid {
 		return nil

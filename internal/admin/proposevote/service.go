@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"tibi/internal/admin/adminvote"
 	"tibi/internal/admin/proposevote/db"
@@ -21,9 +22,6 @@ const (
 type Service struct {
 	db    *database.DB
 	clock func() time.Time
-	// For the future: when a vote resolves immediately (required_votes=1),
-	// the action applies here. Today required_votes=2 so no dispatch happens.
-	// (Kept as a seam, not a placeholder.)
 }
 
 func NewService(db *database.DB) *Service {
@@ -75,8 +73,7 @@ func (s *Service) Execute(ctx context.Context, in Input) (*Response, error) {
 			return err
 		}
 
-		// Duplicate open vote check — the DB index is the race guard,
-		// this is the friendly error.
+		// ✅ FIX 1: استخدام FindOpenVoteParams
 		if _, err := q.FindOpenVote(ctx, db.FindOpenVoteParams{
 			ActionType:   string(in.Action),
 			TargetUserID: in.TargetUserID,
@@ -92,26 +89,32 @@ func (s *Service) Execute(ctx context.Context, in Input) (*Response, error) {
 			requiredVotes, now.Add(voteWindow), now,
 		)
 
+		resolvedAtTz := pgtype.Timestamptz{Valid: false}
+		if vote.ResolvedAt != nil {
+			resolvedAtTz = pgtype.Timestamptz{Time: *vote.ResolvedAt, Valid: true}
+		}
+		// ✅ FIX 2: تحويل الأنواع إلى ما يتوقعه sqlc (db.VoteStatus, int32, pgtype.Timestamptz)
 		row, err := q.InsertAdminVote(ctx, db.InsertAdminVoteParams{
 			ActionType:    string(vote.ActionType),
 			TargetUserID:  vote.TargetUserID,
-			Status:        string(vote.Status),
-			RequiredVotes: vote.RequiredVotes,
-			VotesFor:      vote.VotesFor,
-			VotesAgainst:  vote.VotesAgainst,
-			ExpiresAt:     vote.ExpiresAt,
-			ResolvedAt:    vote.ResolvedAt,
+			Status:        db.VoteStatus(vote.Status),
+			RequiredVotes: int32(vote.RequiredVotes),
+			VotesFor:      int32(vote.VotesFor),
+			VotesAgainst:  int32(vote.VotesAgainst),
+			ExpiresAt:     pgtype.Timestamptz{Time: vote.ExpiresAt, Valid: true},
+			ResolvedAt:    resolvedAtTz, // ✅ الآن النوع متطابق تماماً
 		})
 		if err != nil {
 			return httpx.Internal(err)
 		}
 		vote.ID = row.ID
 
+		// ✅ FIX 3: استخدام InsertVoteParticipantParams وتحويل Vote إلى db.VoteChoice
 		if err := q.InsertVoteParticipant(ctx, db.InsertVoteParticipantParams{
 			AdminVoteID: vote.ID,
 			AdminUserID: vote.Participants[0].AdminUserID,
-			Vote:        string(vote.Participants[0].Vote),
-			VotedAt:     vote.Participants[0].VotedAt,
+			Vote:        db.VoteChoice(vote.Participants[0].Vote),
+			VotedAt:     pgtype.Timestamptz{Time: vote.Participants[0].VotedAt, Valid: true},
 		}); err != nil {
 			return httpx.Internal(err)
 		}
@@ -134,10 +137,6 @@ func (s *Service) Execute(ctx context.Context, in Input) (*Response, error) {
 	return resp, nil
 }
 
-// checkTargetEligibility enforces, per action, what the target's current
-// state must be. This is domain knowledge, but it needs to read
-// identity_users.role, which is why it happens in the slice rather than
-// inside the aggregate.
 func (s *Service) checkTargetEligibility(action adminvote.ActionType, currentRole string) error {
 	switch action {
 	case adminvote.ActionVerifyDoctor:
@@ -149,7 +148,6 @@ func (s *Service) checkTargetEligibility(action adminvote.ActionType, currentRol
 			return httpx.Unprocessable("target is not a verified doctor")
 		}
 	case adminvote.ActionBanUser:
-		// Supported by the schema, not yet by slice code.
 		return httpx.Unprocessable("BanUser votes are not yet supported")
 	}
 	return nil

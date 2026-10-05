@@ -24,16 +24,16 @@ LIMIT 1
 type GetClosedExceptionParams struct {
 	DoctorProfileID int64
 	ExceptionDate   pgtype.Date
-	Column3         pgtype.Time
-	Column4         pgtype.Time
+	FromTime        pgtype.Time
+	ToTime          pgtype.Time
 }
 
 func (q *Queries) GetClosedException(ctx context.Context, arg GetClosedExceptionParams) (int64, error) {
 	row := q.db.QueryRow(ctx, getClosedException,
 		arg.DoctorProfileID,
 		arg.ExceptionDate,
-		arg.Column3,
-		arg.Column4,
+		arg.FromTime,
+		arg.ToTime,
 	)
 	var id int64
 	err := row.Scan(&id)
@@ -53,9 +53,9 @@ LIMIT 1
 
 type GetDoctorBlockForDateParams struct {
 	DoctorProfileID int64
-	Column2         pgtype.Date
-	Column3         pgtype.Time
-	Column4         pgtype.Time
+	Date            pgtype.Date
+	StartTime       pgtype.Time
+	EndTime         pgtype.Time
 }
 
 type GetDoctorBlockForDateRow struct {
@@ -67,9 +67,9 @@ type GetDoctorBlockForDateRow struct {
 func (q *Queries) GetDoctorBlockForDate(ctx context.Context, arg GetDoctorBlockForDateParams) (GetDoctorBlockForDateRow, error) {
 	row := q.db.QueryRow(ctx, getDoctorBlockForDate,
 		arg.DoctorProfileID,
-		arg.Column2,
-		arg.Column3,
-		arg.Column4,
+		arg.Date,
+		arg.StartTime,
+		arg.EndTime,
 	)
 	var i GetDoctorBlockForDateRow
 	err := row.Scan(&i.StartTime, &i.EndTime, &i.SlotDurationMinutes)
@@ -94,32 +94,22 @@ func (q *Queries) GetDoctorProfileByID(ctx context.Context, id int64) (GetDoctor
 	return i, err
 }
 
-const getDoctorProfileIDForUser = `-- name: GetDoctorProfileIDForUser :one
-SELECT id FROM doctors_profiles
-WHERE user_id = $1 AND deleted_at IS NULL
-`
-
-func (q *Queries) GetDoctorProfileIDForUser(ctx context.Context, userID int64) (int64, error) {
-	row := q.db.QueryRow(ctx, getDoctorProfileIDForUser, userID)
-	var id int64
-	err := row.Scan(&id)
-	return id, err
-}
-
 const getOrCreateSession = `-- name: GetOrCreateSession :one
 INSERT INTO doctors_clinic_sessions (
     doctor_profile_id, session_date, start_time, end_time
-) VALUES ($1, $2, $3::time, $4::time)
-ON CONFLICT (doctor_profile_id, session_date, start_time)
+) VALUES (
+             $1, $2, $3::time, $4::time
+         )
+    ON CONFLICT (doctor_profile_id, session_date, start_time)
 DO UPDATE SET end_time = doctors_clinic_sessions.end_time
-RETURNING id, created_at
+           RETURNING id, created_at
 `
 
 type GetOrCreateSessionParams struct {
 	DoctorProfileID int64
 	SessionDate     pgtype.Date
-	Column3         pgtype.Time
-	Column4         pgtype.Time
+	StartTime       pgtype.Time
+	EndTime         pgtype.Time
 }
 
 type GetOrCreateSessionRow struct {
@@ -131,30 +121,10 @@ func (q *Queries) GetOrCreateSession(ctx context.Context, arg GetOrCreateSession
 	row := q.db.QueryRow(ctx, getOrCreateSession,
 		arg.DoctorProfileID,
 		arg.SessionDate,
-		arg.Column3,
-		arg.Column4,
+		arg.StartTime,
+		arg.EndTime,
 	)
 	var i GetOrCreateSessionRow
 	err := row.Scan(&i.ID, &i.CreatedAt)
 	return i, err
-}
-
-const getSessionForBlock = `-- name: GetSessionForBlock :one
-SELECT id FROM doctors_clinic_sessions
-WHERE doctor_profile_id = $1
-  AND session_date = $2
-  AND start_time = $3::time
-`
-
-type GetSessionForBlockParams struct {
-	DoctorProfileID int64
-	SessionDate     pgtype.Date
-	Column3         pgtype.Time
-}
-
-func (q *Queries) GetSessionForBlock(ctx context.Context, arg GetSessionForBlockParams) (int64, error) {
-	row := q.db.QueryRow(ctx, getSessionForBlock, arg.DoctorProfileID, arg.SessionDate, arg.Column3)
-	var id int64
-	err := row.Scan(&id)
-	return id, err
 }

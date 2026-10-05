@@ -26,15 +26,22 @@ func (q *Queries) GetDoctorProfileID(ctx context.Context, userID int64) (int64, 
 const insertException = `-- name: InsertException :one
 INSERT INTO doctors_schedule_exceptions (
     doctor_profile_id, exception_date, from_time, to_time, type, reason
-) VALUES ($1, $2, $3::time, $4::time, $5, $6)
-RETURNING id
+) VALUES (
+             $1,
+             $2,
+             $3::time,
+             $4::time,
+             $5,
+             $6
+         )
+    RETURNING id
 `
 
 type InsertExceptionParams struct {
 	DoctorProfileID int64
 	ExceptionDate   pgtype.Date
-	Column3         pgtype.Time
-	Column4         pgtype.Time
+	FromTime        pgtype.Time
+	ToTime          pgtype.Time
 	Type            ScheduleExceptionType
 	Reason          pgtype.Text
 }
@@ -43,8 +50,8 @@ func (q *Queries) InsertException(ctx context.Context, arg InsertExceptionParams
 	row := q.db.QueryRow(ctx, insertException,
 		arg.DoctorProfileID,
 		arg.ExceptionDate,
-		arg.Column3,
-		arg.Column4,
+		arg.FromTime,
+		arg.ToTime,
 		arg.Type,
 		arg.Reason,
 	)

@@ -23,16 +23,16 @@ func (q *Queries) DeleteDoctorSpecialties(ctx context.Context, doctorProfileID i
 const getDoctorProfileByUserID = `-- name: GetDoctorProfileByUserID :one
 SELECT
     id, user_id, full_name, bio,
-    consultation_fee::text        AS consultation_fee,
+    consultation_fee::text AS consultation_fee,
     currency,
     clinic_name, clinic_address, medical_license_number,
     verification_status,
     verification_rejection_reason,
     submitted_at,
-    average_rating::text          AS average_rating,
+    average_rating::text AS average_rating,
     rating_count,
     created_at, updated_at, deleted_at,
-    doctors_profiles.xmin::text   AS xmin
+    xmin::text AS xmin
 FROM doctors_profiles
 WHERE user_id = $1 AND deleted_at IS NULL
 `
@@ -121,8 +121,8 @@ FROM doctors_specialties
 WHERE id = ANY($1::bigint[])
 `
 
-func (q *Queries) SpecialtyIDsExist(ctx context.Context, dollar_1 []int64) (int64, error) {
-	row := q.db.QueryRow(ctx, specialtyIDsExist, dollar_1)
+func (q *Queries) SpecialtyIDsExist(ctx context.Context, specialtyIds []int64) (int64, error) {
+	row := q.db.QueryRow(ctx, specialtyIDsExist, specialtyIds)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -131,36 +131,36 @@ func (q *Queries) SpecialtyIDsExist(ctx context.Context, dollar_1 []int64) (int6
 const updateDoctorProfile = `-- name: UpdateDoctorProfile :execrows
 UPDATE doctors_profiles
 SET
-    bio                    = $2,
-    consultation_fee       = $3::numeric,
-    currency               = $4,
-    clinic_name            = $5,
-    clinic_address         = $6,
-    medical_license_number = $7,
-    updated_at             = now()
-WHERE id = $1 AND xmin::text = $8
+    bio = $1,
+    consultation_fee = $2::numeric,
+    currency = $3,
+    clinic_name = $4,
+    clinic_address = $5,
+    medical_license_number = $6,
+    updated_at = now()
+WHERE id = $7 AND xmin::text = $8
 `
 
 type UpdateDoctorProfileParams struct {
-	ID                   int64
 	Bio                  string
-	Column3              pgtype.Numeric
+	ConsultationFee      pgtype.Numeric
 	Currency             string
 	ClinicName           string
 	ClinicAddress        string
 	MedicalLicenseNumber pgtype.Text
+	ID                   int64
 	Xmin                 pgtype.Uint32
 }
 
 func (q *Queries) UpdateDoctorProfile(ctx context.Context, arg UpdateDoctorProfileParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateDoctorProfile,
-		arg.ID,
 		arg.Bio,
-		arg.Column3,
+		arg.ConsultationFee,
 		arg.Currency,
 		arg.ClinicName,
 		arg.ClinicAddress,
 		arg.MedicalLicenseNumber,
+		arg.ID,
 		arg.Xmin,
 	)
 	if err != nil {

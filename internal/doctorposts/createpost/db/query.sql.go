@@ -13,9 +13,10 @@ import (
 
 const insertPost = `-- name: InsertPost :one
 INSERT INTO content_posts (
-    doctor_profile_id, title, content, excerpt, type, cover_image_url
-) VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, created_at
+    doctor_profile_id, title, content, excerpt, type, cover_image_url, is_published
+) VALUES (
+             $1, $2, $3, $4, $5, $6, false
+         ) RETURNING id, created_at
 `
 
 type InsertPostParams struct {
@@ -44,4 +45,19 @@ func (q *Queries) InsertPost(ctx context.Context, arg InsertPostParams) (InsertP
 	var i InsertPostRow
 	err := row.Scan(&i.ID, &i.CreatedAt)
 	return i, err
+}
+
+const insertPostAttachment = `-- name: InsertPostAttachment :exec
+INSERT INTO content_post_attachments (doctor_post_id, file_id)
+VALUES ($1, $2)
+`
+
+type InsertPostAttachmentParams struct {
+	DoctorPostID int64
+	FileID       pgtype.Int8
+}
+
+func (q *Queries) InsertPostAttachment(ctx context.Context, arg InsertPostAttachmentParams) error {
+	_, err := q.db.Exec(ctx, insertPostAttachment, arg.DoctorPostID, arg.FileID)
+	return err
 }

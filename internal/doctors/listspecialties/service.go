@@ -46,11 +46,15 @@ func buildTree(rows []db.ListSpecialtiesRow) []Node {
 	roots := make([]*node, 0)
 	for _, r := range rows {
 		n := byID[r.ID]
-		if r.ParentSpecialtyID == nil {
+
+		// ✅ FIX 1: التحقق من .Valid بدلاً من مقارنة pgtype.Int8 بـ nil
+		if !r.ParentSpecialtyID.Valid {
 			roots = append(roots, n)
 			continue
 		}
-		parent, ok := byID[*r.ParentSpecialtyID]
+
+		// ✅ FIX 2: استخدام .Int64 لاستخراج القيمة بدلاً من *r.ParentSpecialtyID
+		parent, ok := byID[r.ParentSpecialtyID.Int64]
 		if !ok {
 			continue
 		}

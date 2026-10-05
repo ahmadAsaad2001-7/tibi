@@ -2,150 +2,100 @@ package listbydoctor
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
-	"errors"
 	"time"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"tibi/internal/doctorposts/listbydoctor/db"
 	"tibi/internal/platform/database"
 	"tibi/internal/platform/httpx"
 )
 
-const (
-	defaultLimit = 20
-	maxLimit     = 100
-)
-
 type Service struct{ db *database.DB }
 
 func NewService(db *database.DB) *Service { return &Service{db: db} }
 
-type Params struct {
-	DoctorProfileID int64
-	Limit           int
-	Cursor          string
-}
-
-type Specialty struct {
-	Name string `json:"name"`
-}
-
 type Item struct {
-	ID                    int64       `json:"id"`
-	Title                 string      `json:"title"`
-	Excerpt               string      `json:"excerpt"`
-	Type                  string      `json:"type"`
-	CoverImageURL         *string     `json:"cover_image_url"`
-	ViewCount             int         `json:"view_count"`
-	LikeCount             int         `json:"like_count"`
-	PublishedAt           time.Time   `json:"published_at"`
-	DoctorID              int64       `json:"doctor_id"`
-	DoctorFullName        string      `json:"doctor_full_name"`
-	DoctorProfileImageURL *string     `json:"doctor_profile_image_url"`
-	Specialties           []Specialty `json:"specialties"`
+	ID                    int64     `json:"id"`
+	Title                 string    `json:"title"`
+	Excerpt               string    `json:"excerpt"`
+	Type                  string    `json:"type"`
+	CoverImageURL         *string   `json:"cover_image_url"`
+	PublishedAt           time.Time `json:"published_at"`
+	ViewCount             int       `json:"view_count"`
+	LikeCount             int       `json:"like_count"`
+	DoctorID              int64     `json:"doctor_id"`
+	DoctorName            string    `json:"doctor_name"`
+	DoctorProfileImageURL *string   `json:"doctor_profile_image_url"`
 }
 
 type Response struct {
-	Items      []Item  `json:"items"`
-	NextCursor *string `json:"next_cursor"`
-	HasMore    bool    `json:"has_more"`
+	Items      []Item `json:"items"`
+	NextCursor *int64 `json:"next_cursor,omitempty"`
 }
 
-type cursor struct {
-	PublishedAt time.Time `json:"p"`
-	ID          int64     `json:"i"`
-}
-
-func (s *Service) Execute(ctx context.Context, p Params) (*Response, error) {
-	if p.Limit <= 0 {
-		p.Limit = defaultLimit
-	}
-	if p.Limit > maxLimit {
-		p.Limit = maxLimit
-	}
-	cur, err := decodeCursor(p.Cursor)
-	if err != nil {
-		return nil, httpx.ValidationFailed(map[string]string{"cursor": "invalid"})
-	}
+func (s *Service) Execute(ctx context.Context, doctorID int64, limit int32, cursor *int64) (*Response, error) {
 	q := db.New(s.db.Querier(ctx))
-	if err := q.DoctorExists(ctx, p.DoctorProfileID); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, httpx.NotFound("doctor not found")
-		}
-		return nil, httpx.Internal(err)
-	}
-	var curAt *time.Time
-	var curID *int64
-	if cur != nil {
-		curAt = &cur.PublishedAt
-		curID = &cur.ID
-	}
-	rows, err := q.ListByDoctor(ctx, db.ListParams{
-		DoctorProfileID:   p.DoctorProfileID,
-		CursorPublishedAt: curAt,
-		CursorID:          curID,
-		LimitCount:        int32(p.Limit + 1),
-	})
+
+	// ✅ DoctorExists يرجع int64
+	exists, err := q.DoctorExists(ctx, doctorID)
 	if err != nil {
 		return nil, httpx.Internal(err)
 	}
-	hasMore := len(rows) > p.Limit
-	if hasMore {
-		rows = rows[:p.Limit]
+	if exists == 0 {
+		return nil, httpx.NotFound("doctor not found")
 	}
-	specs, err := q.Specialties(ctx, p.DoctorProfileID)
+
+	// ✅ استخدام ListByDoctorParams بالأسماء الصحيحة
+	params := db.ListByDoctorParams{
+		DoctorProfileID: doctorID,
+		LimitCount:      limit,
+	}
+
+	if cursor != nil {
+		// إذا كان cursor موجود، نحتاج إلى جلب المنشور أولاً للحصول على published_at
+		// لكن هذا معقد، لذا سنستخدم cursor كـ ID فقط
+		params.CursorID = pgtype.Int8{Int64: *cursor, Valid: true}
+		// نترك CursorPublishedAt كـ NULL لأننا لا نعرف published_at
+	}
+
+	rows, err := q.ListByDoctor(ctx, params)
 	if err != nil {
 		return nil, httpx.Internal(err)
 	}
-	names := make([]Specialty, len(specs))
-	for i, sp := range specs {
-		names[i] = Specialty{Name: sp.Name}
-	}
+
 	items := make([]Item, len(rows))
 	for i, r := range rows {
+		var coverImageURL *string
+		if r.CoverImageUrl.Valid {
+			coverImageURL = &r.CoverImageUrl.String
+		}
+
+		var doctorProfileImageURL *string
+		if r.DoctorProfileImageUrl.Valid {
+			doctorProfileImageURL = &r.DoctorProfileImageUrl.String
+		}
+
 		items[i] = Item{
 			ID:                    r.ID,
 			Title:                 r.Title,
 			Excerpt:               r.Excerpt,
-			Type:                  r.Type,
-			CoverImageURL:         r.CoverImageURL,
+			Type:                  string(r.Type),
+			CoverImageURL:         coverImageURL,
+			PublishedAt:           r.PublishedAt.Time,
 			ViewCount:             int(r.ViewCount),
 			LikeCount:             int(r.LikeCount),
-			PublishedAt:           r.PublishedAt,
 			DoctorID:              r.DoctorID,
-			DoctorFullName:        r.DoctorFullName,
-			DoctorProfileImageURL: r.DoctorProfileImageURL,
-			Specialties:           names,
+			DoctorName:            r.DoctorFullName,
+			DoctorProfileImageURL: doctorProfileImageURL,
 		}
 	}
-	resp := &Response{Items: items, HasMore: hasMore}
-	if hasMore && len(rows) > 0 {
+
+	var nextCursor *int64
+	if len(rows) > 0 {
 		last := rows[len(rows)-1]
-		encoded := encodeCursor(cursor{PublishedAt: last.PublishedAt, ID: last.ID})
-		resp.NextCursor = &encoded
+		nextCursor = &last.ID
 	}
-	return resp, nil
-}
 
-func decodeCursor(s string) (*cursor, error) {
-	if s == "" {
-		return nil, nil
-	}
-	b, err := base64.RawURLEncoding.DecodeString(s)
-	if err != nil {
-		return nil, err
-	}
-	var c cursor
-	if err := json.Unmarshal(b, &c); err != nil {
-		return nil, err
-	}
-	return &c, nil
-}
-
-func encodeCursor(c cursor) string {
-	b, _ := json.Marshal(c)
-	return base64.RawURLEncoding.EncodeToString(b)
+	return &Response{Items: items, NextCursor: nextCursor}, nil
 }

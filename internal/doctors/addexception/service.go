@@ -57,21 +57,32 @@ func (s *Service) Execute(ctx context.Context, userID int64, cmd Command) (*Resp
 		}
 		return nil, httpx.Internal(err)
 	}
+
+	// ✅ FIX 5: تحويل *string إلى pgtype.Text بأمان
+	reasonText := pgtype.Text{Valid: false}
+	if cmd.Reason != nil {
+		reasonText = pgtype.Text{String: *cmd.Reason, Valid: true}
+	}
+
 	id, err := q.InsertException(ctx, db.InsertExceptionParams{
 		DoctorProfileID: profileID,
-		ExceptionDate:   day,
-		FromTime:        pgtypeTime(from),
-		ToTime:          pgtypeTime(to),
-		Type:            string(kind),
-		Reason:          cmd.Reason,
+		ExceptionDate:   pgtype.Date{Time: day, Valid: true}, // ✅ FIX 1: تحويل time.Time إلى pgtype.Date
+		FromTime:        pgtypeTime(from),                    // ✅ FIX 2: تحويل TimeOfDay إلى pgtype.Time
+		ToTime:          pgtypeTime(to),                      // ✅ FIX 3: تحويل TimeOfDay إلى pgtype.Time
+		Type:            db.ScheduleExceptionType(kind),      // ✅ FIX 4: تحويل scheduleexception.Type إلى db.ScheduleExceptionType
+		Reason:          reasonText,                          // ✅ استخدام المتغير المحول
 	})
 	if err != nil {
 		return nil, httpx.Internal(err)
 	}
+
 	return &Response{
-		ID: id, Date: day.Format("2006-01-02"),
-		FromTime: from.String(), ToTime: to.String(),
-		Type: string(kind), Reason: cmd.Reason,
+		ID:       id,
+		Date:     day.Format("2006-01-02"),
+		FromTime: from.String(),
+		ToTime:   to.String(),
+		Type:     string(kind),
+		Reason:   cmd.Reason,
 	}, nil
 }
 

@@ -59,7 +59,7 @@ func (s *Service) Execute(ctx context.Context, userID, consultationID int64) (*R
 			Name:         m.MedicationName,
 			Dosage:       m.Dosage,
 			Frequency:    m.Frequency,
-			DurationDays: m.DurationDays,
+			DurationDays: int(m.DurationDays),
 			Notes:        m.Notes,
 		})
 	}

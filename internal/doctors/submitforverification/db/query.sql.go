@@ -16,7 +16,7 @@ SELECT id, user_id, full_name, bio,
        consultation_fee::text AS consultation_fee,
     currency, clinic_name, clinic_address, medical_license_number,
        verification_status, submitted_at,
-       doctors_profiles.xmin::text AS xmin
+       xmin::text AS xmin
 FROM doctors_profiles
 WHERE user_id = $1 AND deleted_at IS NULL
 `
@@ -84,24 +84,24 @@ func (q *Queries) ListSpecialtyIDs(ctx context.Context, doctorProfileID int64) (
 
 const updateVerificationStatus = `-- name: UpdateVerificationStatus :execrows
 UPDATE doctors_profiles
-SET verification_status = $2,
-    submitted_at        = $3,
+SET verification_status = $1,
+    submitted_at        = $2,
     updated_at          = now()
-WHERE id = $1 AND xmin::text = $4
+WHERE id = $3 AND xmin::text = $4
 `
 
 type UpdateVerificationStatusParams struct {
-	ID                 int64
 	VerificationStatus VerificationStatus
 	SubmittedAt        pgtype.Timestamptz
+	ID                 int64
 	Xmin               pgtype.Uint32
 }
 
 func (q *Queries) UpdateVerificationStatus(ctx context.Context, arg UpdateVerificationStatusParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateVerificationStatus,
-		arg.ID,
 		arg.VerificationStatus,
 		arg.SubmittedAt,
+		arg.ID,
 		arg.Xmin,
 	)
 	if err != nil {

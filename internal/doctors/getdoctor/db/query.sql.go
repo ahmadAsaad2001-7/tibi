@@ -65,12 +65,12 @@ WHERE doctor_profile_id = $1
 
 type BookedSlotsParams struct {
 	DoctorProfileID int64
-	ScheduledAt     pgtype.Timestamptz
-	ScheduledAt_2   pgtype.Timestamptz
+	FromTs          pgtype.Timestamptz
+	ToTs            pgtype.Timestamptz
 }
 
 func (q *Queries) BookedSlots(ctx context.Context, arg BookedSlotsParams) ([]pgtype.Timestamptz, error) {
-	rows, err := q.db.Query(ctx, bookedSlots, arg.DoctorProfileID, arg.ScheduledAt, arg.ScheduledAt_2)
+	rows, err := q.db.Query(ctx, bookedSlots, arg.DoctorProfileID, arg.FromTs, arg.ToTs)
 	if err != nil {
 		return nil, err
 	}
@@ -99,8 +99,8 @@ WHERE doctor_profile_id = $1
 
 type ExceptionsForDoctorParams struct {
 	DoctorProfileID int64
-	ExceptionDate   pgtype.Date
-	ExceptionDate_2 pgtype.Date
+	FromDate        pgtype.Date
+	ToDate          pgtype.Date
 }
 
 type ExceptionsForDoctorRow struct {
@@ -111,7 +111,7 @@ type ExceptionsForDoctorRow struct {
 }
 
 func (q *Queries) ExceptionsForDoctor(ctx context.Context, arg ExceptionsForDoctorParams) ([]ExceptionsForDoctorRow, error) {
-	rows, err := q.db.Query(ctx, exceptionsForDoctor, arg.DoctorProfileID, arg.ExceptionDate, arg.ExceptionDate_2)
+	rows, err := q.db.Query(ctx, exceptionsForDoctor, arg.DoctorProfileID, arg.FromDate, arg.ToDate)
 	if err != nil {
 		return nil, err
 	}
@@ -136,18 +136,18 @@ func (q *Queries) ExceptionsForDoctor(ctx context.Context, arg ExceptionsForDoct
 }
 
 const getDoctorByID = `-- name: GetDoctorByID :one
-
 SELECT
     d.id, d.full_name, d.bio, d.clinic_name, d.clinic_address,
     d.consultation_fee::text AS consultation_fee,
     d.currency,
     d.average_rating::text   AS average_rating,
     d.rating_count,
+    u.profile_image_file_id,
+    u.profile_image_url,
     d.medical_license_number,
-    d.verification_status,
-    u.profile_image_url
+    d.verification_status
 FROM doctors_profiles d
-JOIN identity_users u ON u.id = d.user_id AND u.deleted_at IS NULL
+         JOIN identity_users u ON u.id = d.user_id AND u.deleted_at IS NULL
 WHERE d.id = $1
   AND d.deleted_at IS NULL
   AND d.verification_status = 'Verified'
@@ -163,12 +163,12 @@ type GetDoctorByIDRow struct {
 	Currency             string
 	AverageRating        string
 	RatingCount          int32
+	ProfileImageFileID   pgtype.Int8
+	ProfileImageUrl      pgtype.Text
 	MedicalLicenseNumber pgtype.Text
 	VerificationStatus   VerificationStatus
-	ProfileImageUrl      pgtype.Text
 }
 
-// Cross-module read; see search/query.sql.
 func (q *Queries) GetDoctorByID(ctx context.Context, id int64) (GetDoctorByIDRow, error) {
 	row := q.db.QueryRow(ctx, getDoctorByID, id)
 	var i GetDoctorByIDRow
@@ -182,9 +182,10 @@ func (q *Queries) GetDoctorByID(ctx context.Context, id int64) (GetDoctorByIDRow
 		&i.Currency,
 		&i.AverageRating,
 		&i.RatingCount,
+		&i.ProfileImageFileID,
+		&i.ProfileImageUrl,
 		&i.MedicalLicenseNumber,
 		&i.VerificationStatus,
-		&i.ProfileImageUrl,
 	)
 	return i, err
 }
@@ -196,7 +197,7 @@ WHERE doctor_profile_id = $1
   AND is_published
   AND deleted_at IS NULL
 ORDER BY published_at DESC NULLS LAST, id DESC
-LIMIT 5
+    LIMIT 5
 `
 
 type RecentPostsRow struct {
@@ -236,7 +237,7 @@ func (q *Queries) RecentPosts(ctx context.Context, doctorProfileID int64) ([]Rec
 const specialtiesForDoctor = `-- name: SpecialtiesForDoctor :many
 SELECT s.id, s.name
 FROM doctors_profile_specialties dps
-JOIN doctors_specialties s ON s.id = dps.specialty_id
+         JOIN doctors_specialties s ON s.id = dps.specialty_id
 WHERE dps.doctor_profile_id = $1
 ORDER BY s.name
 `

@@ -14,7 +14,11 @@ func NewService(db *database.DB) *Service { return &Service{db: db} }
 
 func (s *Service) Execute(ctx context.Context, userID, exceptionID int64) error {
 	q := db.New(s.db.Querier(ctx))
-	affected, err := q.DeleteException(ctx, exceptionID, userID)
+
+	affected, err := q.DeleteException(ctx, db.DeleteExceptionParams{
+		ID:     exceptionID,
+		UserID: userID,
+	})
 	if err != nil {
 		return httpx.Internal(err)
 	}

@@ -15,7 +15,7 @@ const getVoteForUpdate = `-- name: GetVoteForUpdate :one
 SELECT
     id, action_type, target_user_id, status, required_votes,
     votes_for, votes_against, expires_at, resolved_at,
-    admin_votes.xmin::text AS xmin
+    xmin::text AS xmin
 FROM admin_votes
 WHERE id = $1 AND deleted_at IS NULL
 `
@@ -108,30 +108,30 @@ func (q *Queries) InsertVoteParticipant(ctx context.Context, arg InsertVoteParti
 
 const updateVoteTally = `-- name: UpdateVoteTally :execrows
 UPDATE admin_votes
-SET votes_for     = $2,
-    votes_against = $3,
-    status        = $4,
-    resolved_at   = $5,
+SET votes_for     = $1,
+    votes_against = $2,
+    status        = $3,
+    resolved_at   = $4,
     updated_at    = now()
-WHERE id = $1 AND xmin::text = $6
+WHERE id = $5 AND xmin::text = $6
 `
 
 type UpdateVoteTallyParams struct {
-	ID           int64
 	VotesFor     int32
 	VotesAgainst int32
 	Status       VoteStatus
 	ResolvedAt   pgtype.Timestamptz
+	ID           int64
 	Xmin         pgtype.Uint32
 }
 
 func (q *Queries) UpdateVoteTally(ctx context.Context, arg UpdateVoteTallyParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateVoteTally,
-		arg.ID,
 		arg.VotesFor,
 		arg.VotesAgainst,
 		arg.Status,
 		arg.ResolvedAt,
+		arg.ID,
 		arg.Xmin,
 	)
 	if err != nil {

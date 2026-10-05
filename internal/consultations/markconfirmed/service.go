@@ -7,6 +7,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	commcontracts "tibi/internal/communication/contracts"
+	commnotify "tibi/internal/communication/notify"
 	"tibi/internal/consultations/consultation"
 	"tibi/internal/consultations/markconfirmed/db"
 	"tibi/internal/platform/database"
@@ -17,11 +19,12 @@ import (
 type Service struct {
 	db    *database.DB
 	hub   ws.Hub
+	notif commcontracts.API
 	clock func() time.Time
 }
 
-func NewService(db *database.DB, hub ws.Hub) *Service {
-	return &Service{db: db, hub: hub, clock: time.Now}
+func NewService(db *database.DB, hub ws.Hub, notif commcontracts.API) *Service {
+	return &Service{db: db, hub: hub, notif: notif, clock: time.Now}
 }
 
 // Execute is called by the Payments webhook when a payment succeeds.
@@ -79,6 +82,14 @@ func (s *Service) Execute(ctx context.Context, consultationID int64) error {
 		patientUserID = row.PatientUserID
 		doctorUserID = row.DoctorUserID
 		status = string(c.Status)
+
+		// Inside tx: notify the patient (idempotent — only on the changed path,
+		// so webhook retries on an already-Confirmed consultation stay silent).
+		if s.notif != nil {
+			if err := commnotify.ConsultationConfirmed(ctx, s.notif, patientUserID, consultationID); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	if err != nil {
@@ -95,6 +106,9 @@ func (s *Service) Execute(ctx context.Context, consultationID int64) error {
 		s.hub.SendToConsultation(consultationID, ev)
 		s.hub.SendToUser(patientUserID, ev)
 		s.hub.SendToUser(doctorUserID, ev)
+
+		// Durable signal: tell the patient to refetch /notifications.
+		s.hub.SendToUser(patientUserID, ws.Event{Type: "NotificationCreated", Payload: nil})
 	}
 	return nil
 }

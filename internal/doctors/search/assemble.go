@@ -25,7 +25,8 @@ func cursorFromRow(sort Sort, r searchRow) cursor {
 	case SortFeeAsc, SortFeeDesc:
 		c.Fee = &r.ConsultationFee
 	case SortCreatedAt:
-		s := r.CreatedAt.UTC().Format(time.RFC3339Nano)
+		// ✅ FIX: استخراج .Time من pgtype.Timestamptz قبل استدعاء .UTC()
+		s := r.CreatedAt.Time.UTC().Format(time.RFC3339Nano)
 		c.CreatedAt = &s
 	}
 	return c

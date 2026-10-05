@@ -3,9 +3,11 @@ package upsertrecord
 import (
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"tibi/internal/clinical/upsertrecord/db"
 	consultationscontracts "tibi/internal/consultations/contracts"
@@ -52,14 +54,25 @@ func (s *Service) Execute(ctx context.Context, userID, consultationID int64, cmd
 		if err == nil {
 			// Update path.
 			in := updateInputFrom(cmd, existing)
+
+			// ✅ FIX: تحويل existing.Xmin (string) إلى pgtype.Uint32
+			var xmin pgtype.Uint32
+			if existing.Xmin != "" {
+				val, err := strconv.ParseUint(existing.Xmin, 10, 32)
+				if err != nil {
+					return httpx.Internal(err)
+				}
+				xmin = pgtype.Uint32{Uint32: uint32(val), Valid: true}
+			}
+
 			n, err := q.UpdateRecord(ctx, db.UpdateRecordParams{
 				ID:                 existing.ID,
 				Allergies:          in.Allergies,
 				CurrentMedications: in.CurrentMedications,
 				PastConditions:     in.PastConditions,
 				DoctorNotes:        in.DoctorNotes,
-				UpdatedAt:          pgTime(now),
-				Xmin:               existing.Xmin,
+				UpdatedAt:          pgtype.Timestamptz{Time: now, Valid: true}, // ✅ استخدام pgtype.Timestamptz مباشرة
+				Xmin:               xmin,                                       // ✅ استخدام المتغير المحول
 			})
 			if err != nil {
 				return httpx.Internal(err)
@@ -78,6 +91,7 @@ func (s *Service) Execute(ctx context.Context, userID, consultationID int64, cmd
 			}
 			return nil
 		}
+
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return httpx.Internal(err)
 		}
@@ -95,6 +109,7 @@ func (s *Service) Execute(ctx context.Context, userID, consultationID int64, cmd
 		if err != nil {
 			return httpx.Internal(err)
 		}
+
 		resp = &Response{
 			ID:                 row.ID,
 			ConsultationID:     consultationID,
@@ -106,9 +121,11 @@ func (s *Service) Execute(ctx context.Context, userID, consultationID int64, cmd
 		}
 		return nil
 	})
+
 	if err != nil {
 		return nil, err
 	}
+
 	return resp, nil
 }
 

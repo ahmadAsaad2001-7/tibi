@@ -69,17 +69,25 @@ func (s *Service) Execute(ctx context.Context, userID int64) (*Response, error) 
 			IsActive:            b.IsActive,
 		}
 	}
+
 	exceptions := make([]ExceptionOut, len(exceptionRows))
 	for i, e := range exceptionRows {
+		// ✅ FIX 2: تحويل pgtype.Text إلى *string بأمان
+		var reason *string
+		if e.Reason.Valid {
+			reason = &e.Reason.String
+		}
+
 		exceptions[i] = ExceptionOut{
 			ID:       e.ID,
 			Date:     e.ExceptionDate.Time.Format("2006-01-02"),
 			FromTime: timeFromPg(e.FromTime).String(),
 			ToTime:   timeFromPg(e.ToTime).String(),
-			Type:     e.Type,
-			Reason:   e.Reason,
+			Type:     string(e.Type), // ✅ FIX 1: تحويل db.ScheduleExceptionType إلى string
+			Reason:   reason,         // ✅ استخدام المتغير المحول
 		}
 	}
+
 	return &Response{Weekly: weekly, Exceptions: exceptions}, nil
 }
 

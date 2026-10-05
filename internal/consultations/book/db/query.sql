@@ -30,3 +30,7 @@ INSERT INTO consultations_consultations (
     scheduled_at, duration_minutes, is_urgent, notes
 ) VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING id, created_at;
+
+-- name: GetDoctorUserID :one
+SELECT user_id FROM doctors_profiles WHERE id = $1 AND deleted_at IS NULL;
+

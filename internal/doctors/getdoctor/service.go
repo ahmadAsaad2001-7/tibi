@@ -14,6 +14,7 @@ import (
 	"tibi/internal/doctors/getdoctor/db"
 	"tibi/internal/doctors/scheduleexception"
 	"tibi/internal/doctors/weeklyschedule"
+	filescontracts "tibi/internal/files/contracts" // ✅ Added
 	"tibi/internal/platform/database"
 	"tibi/internal/platform/httpx"
 )
@@ -22,11 +23,13 @@ const horizonDays = 30
 
 type Service struct {
 	db    *database.DB
+	files filescontracts.API // ✅ Added as per Slice 12b
 	clock func() time.Time
 }
 
-func NewService(db *database.DB) *Service {
-	return &Service{db: db, clock: time.Now}
+// ✅ Updated to accept filesAPI
+func NewService(db *database.DB, files filescontracts.API) *Service {
+	return &Service{db: db, files: files, clock: time.Now}
 }
 
 type Specialty struct {
@@ -89,14 +92,25 @@ func (s *Service) Execute(ctx context.Context, id int64) (*Response, error) {
 	now := s.clock()
 	from := now
 	to := now.AddDate(0, 0, horizonDays)
-	exRows, err := q.ExceptionsForDoctor(ctx, id, pgDate(from), pgDate(to))
+
+	exRows, err := q.ExceptionsForDoctor(ctx, db.ExceptionsForDoctorParams{
+		DoctorProfileID: id,
+		FromDate:        pgDate(from),
+		ToDate:          pgDate(to),
+	})
 	if err != nil {
 		return nil, httpx.Internal(err)
 	}
-	bookedRows, err := q.BookedSlots(ctx, id, from, to)
+
+	bookedRows, err := q.BookedSlots(ctx, db.BookedSlotsParams{
+		DoctorProfileID: id,
+		FromTs:          pgtype.Timestamptz{Time: from, Valid: true},
+		ToTs:            pgtype.Timestamptz{Time: to, Valid: true},
+	})
 	if err != nil {
 		return nil, httpx.Internal(err)
 	}
+
 	posts, err := q.RecentPosts(ctx, id)
 	if err != nil {
 		return nil, httpx.Internal(err)
@@ -121,18 +135,20 @@ func (s *Service) Execute(ctx context.Context, id int64) (*Response, error) {
 			SlotDurationMinutes: int(b.SlotDurationMinutes),
 		}
 	}
+
 	exceptions := make([]scheduleexception.Exception, len(exRows))
 	for i, e := range exRows {
 		exceptions[i] = scheduleexception.Exception{
-			Date:     e.ExceptionDate,
+			Date:     e.ExceptionDate.Time,
 			FromTime: tod(e.FromTime),
 			ToTime:   tod(e.ToTime),
 			Type:     scheduleexception.Type(e.Type),
 		}
 	}
+
 	booked := map[string][]doctorprofile.TimeOfDay{}
 	for _, at := range bookedRows {
-		u := at.UTC()
+		u := at.Time.UTC()
 		key := u.Format("2006-01-02")
 		booked[key] = append(booked[key], doctorprofile.TimeOfDay{Hour: u.Hour(), Minute: u.Minute()})
 	}
@@ -141,9 +157,32 @@ func (s *Service) Execute(ctx context.Context, id int64) (*Response, error) {
 	for i, sp := range specs {
 		specialties[i] = Specialty{ID: sp.ID, Name: sp.Name}
 	}
+
 	recent := make([]Post, len(posts))
 	for i, p := range posts {
-		recent[i] = Post{ID: p.ID, Title: p.Title, Excerpt: p.Excerpt, Type: p.Type, PublishedAt: p.PublishedAt}
+		recent[i] = Post{
+			ID:          p.ID,
+			Title:       p.Title,
+			Excerpt:     p.Excerpt,
+			Type:        string(p.Type),
+			PublishedAt: p.PublishedAt.Time,
+		}
+	}
+
+	var medLicense *string
+	if doc.MedicalLicenseNumber.Valid {
+		medLicense = &doc.MedicalLicenseNumber.String
+	}
+
+	// ✅ FIX: Resolve Profile Image URL based on Slice 12b spec
+	var profileImg *string
+	if doc.ProfileImageFileID.Valid {
+		u, err := s.files.PresignGet(ctx, doc.ProfileImageFileID.Int64, 86400)
+		if err == nil {
+			profileImg = &u
+		}
+	} else if doc.ProfileImageUrl.Valid {
+		profileImg = &doc.ProfileImageUrl.String
 	}
 
 	resp := &Response{
@@ -156,15 +195,17 @@ func (s *Service) Execute(ctx context.Context, id int64) (*Response, error) {
 		Currency:             strings.TrimSpace(doc.Currency),
 		AverageRating:        strings.TrimSpace(doc.AverageRating),
 		RatingCount:          int(doc.RatingCount),
-		MedicalLicenseNumber: doc.MedicalLicenseNumber,
-		ProfileImageURL:      doc.ProfileImageURL,
+		MedicalLicenseNumber: medLicense,
+		ProfileImageURL:      profileImg, // ✅ Use resolved URL
 		Specialties:          specialties,
 		WeeklySchedule:       weekly,
 		RecentPosts:          recent,
 	}
+
 	if slot, ok := availability.NextSlot(from, horizonDays, blocks, exceptions, booked); ok {
 		resp.NextAvailableAt = &slot
 	}
+
 	return resp, nil
 }
 

@@ -59,18 +59,18 @@ WHERE doctor_profile_id = $1
   AND deleted_at IS NULL
   AND (
     status IN ('Confirmed', 'InProgress')
-    OR (status = 'Pending' AND created_at > now() - INTERVAL '15 minutes')
-  )
+        OR (status = 'Pending' AND created_at > now() - INTERVAL '15 minutes')
+    )
 `
 
 type BookedInRangeParams struct {
 	DoctorProfileID int64
-	ScheduledAt     pgtype.Timestamptz
-	ScheduledAt_2   pgtype.Timestamptz
+	FromTs          pgtype.Timestamptz
+	ToTs            pgtype.Timestamptz
 }
 
 func (q *Queries) BookedInRange(ctx context.Context, arg BookedInRangeParams) ([]pgtype.Timestamptz, error) {
-	rows, err := q.db.Query(ctx, bookedInRange, arg.DoctorProfileID, arg.ScheduledAt, arg.ScheduledAt_2)
+	rows, err := q.db.Query(ctx, bookedInRange, arg.DoctorProfileID, arg.FromTs, arg.ToTs)
 	if err != nil {
 		return nil, err
 	}
@@ -99,8 +99,8 @@ WHERE doctor_profile_id = $1
 
 type ExceptionsInRangeParams struct {
 	DoctorProfileID int64
-	ExceptionDate   pgtype.Date
-	ExceptionDate_2 pgtype.Date
+	FromDate        pgtype.Date
+	ToDate          pgtype.Date
 }
 
 type ExceptionsInRangeRow struct {
@@ -111,7 +111,7 @@ type ExceptionsInRangeRow struct {
 }
 
 func (q *Queries) ExceptionsInRange(ctx context.Context, arg ExceptionsInRangeParams) ([]ExceptionsInRangeRow, error) {
-	rows, err := q.db.Query(ctx, exceptionsInRange, arg.DoctorProfileID, arg.ExceptionDate, arg.ExceptionDate_2)
+	rows, err := q.db.Query(ctx, exceptionsInRange, arg.DoctorProfileID, arg.FromDate, arg.ToDate)
 	if err != nil {
 		return nil, err
 	}

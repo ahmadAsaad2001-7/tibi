@@ -2,6 +2,9 @@ package api
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype" // ✅ أضفنا هذا الاستيراد
+
 	"tibi/internal/doctors/contracts"
 	"tibi/internal/doctors/createprofile/db"
 	"tibi/internal/doctors/createsession"
@@ -36,10 +39,17 @@ func (a *API) CreateDoctorProfile(ctx context.Context, in contracts.CreateDoctor
 
 func (a *API) SetVerificationStatus(ctx context.Context, in contracts.SetVerificationStatusInput) error {
 	q := db.New(a.db.Querier(ctx))
+
+	// ✅ FIX 1: تحويل *string إلى pgtype.Text بأمان
+	var rejectionReason pgtype.Text
+	if in.RejectionReason != nil {
+		rejectionReason = pgtype.Text{String: *in.RejectionReason, Valid: true}
+	}
+
 	affected, err := q.SetDoctorVerificationStatus(ctx, db.SetDoctorVerificationStatusParams{
 		UserID:                      in.UserID,
-		VerificationStatus:          in.Status,
-		VerificationRejectionReason: in.RejectionReason,
+		VerificationStatus:          db.VerificationStatus(in.Status),
+		VerificationRejectionReason: rejectionReason,
 	})
 	if err != nil {
 		return httpx.Internal(err)

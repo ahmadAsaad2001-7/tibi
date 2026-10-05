@@ -75,6 +75,7 @@ linters-settings:
           - tibi/internal/content
           - tibi/internal/queue
           - tibi/internal/files
+          - tibi/internal/communication
 
       payments:
         files: ["**/internal/payments/**"]
@@ -93,6 +94,8 @@ linters-settings:
           - tibi/internal/consultations
           - tibi/internal/doctors/contracts
           - tibi/internal/payments/contracts
+          - tibi/internal/communication/contracts
+          - tibi/internal/communication/notify
           - tibi/internal/platform
           - github.com/jackc/pgx/v5
           - github.com/go-chi/chi/v5
@@ -104,6 +107,20 @@ linters-settings:
           - $gostd
           - tibi/internal/queue
           - tibi/internal/consultations/contracts
+          - tibi/internal/communication/contracts
+          - tibi/internal/communication/notify
+          - tibi/internal/platform
+          - github.com/jackc/pgx/v5
+          - github.com/go-chi/chi/v5
+          - github.com/go-playground/validator/v10
+
+
+
+      communication:
+        files: ["**/internal/communication/**"]
+        allow:
+          - $gostd
+          - tibi/internal/communication
           - tibi/internal/platform
           - github.com/jackc/pgx/v5
           - github.com/go-chi/chi/v5

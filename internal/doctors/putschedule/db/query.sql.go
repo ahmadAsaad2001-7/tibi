@@ -36,14 +36,17 @@ const insertBlock = `-- name: InsertBlock :exec
 INSERT INTO doctors_weekly_schedules (
     doctor_profile_id, day_of_week, start_time, end_time,
     slot_duration_minutes, is_active
-) VALUES ($1, $2, $3::time, $4::time, $5, $6)
+) VALUES (
+             $1, $2, $3::time, $4::time,
+             $5, $6
+         )
 `
 
 type InsertBlockParams struct {
 	DoctorProfileID     int64
 	DayOfWeek           int16
-	Column3             pgtype.Time
-	Column4             pgtype.Time
+	StartTime           pgtype.Time
+	EndTime             pgtype.Time
 	SlotDurationMinutes int32
 	IsActive            bool
 }
@@ -52,8 +55,8 @@ func (q *Queries) InsertBlock(ctx context.Context, arg InsertBlockParams) error 
 	_, err := q.db.Exec(ctx, insertBlock,
 		arg.DoctorProfileID,
 		arg.DayOfWeek,
-		arg.Column3,
-		arg.Column4,
+		arg.StartTime,
+		arg.EndTime,
 		arg.SlotDurationMinutes,
 		arg.IsActive,
 	)

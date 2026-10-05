@@ -1,11 +1,11 @@
 -- name: ProfileID :one
-SELECT id FROM doctors_profiles WHERE user_id = $1 AND deleted_at IS NULL;
+SELECT id FROM doctors_profiles WHERE user_id = @user_id AND deleted_at IS NULL;
 
 -- name: IsPublished :one
 SELECT is_published FROM content_posts
-WHERE id = $1 AND doctor_profile_id = $2 AND deleted_at IS NULL;
+WHERE id = @id AND doctor_profile_id = @doctor_profile_id AND deleted_at IS NULL;
 
 -- name: Publish :execrows
 UPDATE content_posts
-SET is_published = true, published_at = $3, updated_at = $3
-WHERE id = $1 AND doctor_profile_id = $2 AND deleted_at IS NULL AND is_published = false;
+SET is_published = true, published_at = @published_at, updated_at = @updated_at
+WHERE id = @id AND doctor_profile_id = @doctor_profile_id AND deleted_at IS NULL AND is_published = false;

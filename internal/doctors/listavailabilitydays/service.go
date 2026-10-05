@@ -67,8 +67,8 @@ func (s *Service) Execute(ctx context.Context, doctorProfileID int64, from, to t
 
 	exceptionRows, err := q.ExceptionsInRange(ctx, db.ExceptionsInRangeParams{
 		DoctorProfileID: doctorProfileID,
-		ExceptionDate:   pgtypeDate(from),
-		ExceptionDate_2: pgtypeDate(to),
+		FromDate:        pgtypeDate(from),
+		ToDate:          pgtypeDate(to),
 	})
 	if err != nil {
 		return nil, httpx.Internal(err)
@@ -85,15 +85,29 @@ func (s *Service) Execute(ctx context.Context, doctorProfileID int64, from, to t
 		})
 	}
 
-	bookedRows, err := q.BookedInRange(ctx, doctorProfileID, from, to.AddDate(0, 0, 1))
+	// ✅ FIX: استخدام Params Struct
+	bookedRows, err := q.BookedInRange(ctx, db.BookedInRangeParams{
+		DoctorProfileID: doctorProfileID,
+		FromTs:          pgtype.Timestamptz{Time: from, Valid: true},
+		ToTs:            pgtype.Timestamptz{Time: to.AddDate(0, 0, 1), Valid: true},
+	})
 	if err != nil {
 		return nil, httpx.Internal(err)
 	}
+
 	bookedByDate := map[string][]doctorprofile.TimeOfDay{}
-	for _, at := range bookedRows {
-		u := at.UTC()
+
+	// ✅ FIX الجذري: bookedRows هو []pgtype.Timestamptz مباشرة، وليس Struct
+	for _, scheduledAt := range bookedRows {
+		if !scheduledAt.Valid {
+			continue
+		}
+		u := scheduledAt.Time.UTC()
 		key := u.Format("2006-01-02")
-		bookedByDate[key] = append(bookedByDate[key], doctorprofile.TimeOfDay{Hour: u.Hour(), Minute: u.Minute()})
+		bookedByDate[key] = append(bookedByDate[key], doctorprofile.TimeOfDay{
+			Hour:   u.Hour(),
+			Minute: u.Minute(),
+		})
 	}
 
 	resp := &Response{Days: []DayOut{}}

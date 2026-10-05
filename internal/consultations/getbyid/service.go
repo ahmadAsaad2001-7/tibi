@@ -41,17 +41,24 @@ func (s *Service) Execute(ctx context.Context, userID, id int64) (*Response, err
 	if userID != row.PatientUserID && userID != row.DoctorUserID {
 		return nil, httpx.Forbidden("not a participant")
 	}
+
+	// ✅ FIX: تحويل pgtype.Text إلى *string بأمان
+	var notes *string
+	if row.Notes.Valid {
+		notes = &row.Notes.String
+	}
+
 	return &Response{
 		ID:               row.ID,
-		Status:           row.Status,
-		ScheduledAt:      row.ScheduledAt,
+		Status:           string(row.Status),   // ✅ FIX 1: تحويل db.ConsultationStatus إلى string
+		ScheduledAt:      row.ScheduledAt.Time, // ✅ FIX 2: استخراج time.Time من pgtype.Timestamptz
 		DurationMinutes:  int(row.DurationMinutes),
 		IsUrgent:         row.IsUrgent,
-		Notes:            row.Notes,
+		Notes:            notes, // ✅ FIX 3: استخدام المتغير المحول
 		DoctorProfileID:  row.DoctorProfileID,
 		DoctorName:       row.DoctorName,
 		PatientProfileID: row.PatientProfileID,
 		PatientName:      row.PatientName,
-		CreatedAt:        row.CreatedAt,
+		CreatedAt:        row.CreatedAt.Time, // ✅ FIX 4: استخراج time.Time من pgtype.Timestamptz
 	}, nil
 }

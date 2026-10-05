@@ -59,18 +59,18 @@ WHERE doctor_profile_id = $1
   AND deleted_at IS NULL
   AND (
     status IN ('Confirmed', 'InProgress')
-    OR (status = 'Pending' AND created_at > now() - INTERVAL '15 minutes')
-  )
+        OR (status = 'Pending' AND created_at > now() - INTERVAL '15 minutes')
+    )
 `
 
 type BookedOnDateParams struct {
 	DoctorProfileID int64
-	ScheduledAt     pgtype.Timestamptz
-	ScheduledAt_2   pgtype.Timestamptz
+	FromTs          pgtype.Timestamptz
+	ToTs            pgtype.Timestamptz
 }
 
 func (q *Queries) BookedOnDate(ctx context.Context, arg BookedOnDateParams) ([]pgtype.Timestamptz, error) {
-	rows, err := q.db.Query(ctx, bookedOnDate, arg.DoctorProfileID, arg.ScheduledAt, arg.ScheduledAt_2)
+	rows, err := q.db.Query(ctx, bookedOnDate, arg.DoctorProfileID, arg.FromTs, arg.ToTs)
 	if err != nil {
 		return nil, err
 	}

@@ -3,6 +3,7 @@ package submitforverification
 import (
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -48,6 +49,12 @@ func (s *Service) Execute(ctx context.Context, userID int64) (*Response, error) 
 			return httpx.Internal(err)
 		}
 
+		// ✅ FIX 1: تحويل pgtype.Text إلى *string بأمان
+		var medLicense *string
+		if row.MedicalLicenseNumber.Valid {
+			medLicense = &row.MedicalLicenseNumber.String
+		}
+
 		profile := &doctorprofile.Profile{
 			ID:                   row.ID,
 			UserID:               row.UserID,
@@ -57,7 +64,7 @@ func (s *Service) Execute(ctx context.Context, userID int64) (*Response, error) 
 			Currency:             row.Currency,
 			ClinicName:           row.ClinicName,
 			ClinicAddress:        row.ClinicAddress,
-			MedicalLicenseNumber: row.MedicalLicenseNumber,
+			MedicalLicenseNumber: medLicense, // ✅ تم التصحيح
 			VerificationStatus:   doctorprofile.VerificationStatus(row.VerificationStatus),
 			SubmittedAt:          timePtr(row.SubmittedAt),
 			SpecialtyIDs:         specIDs,
@@ -79,11 +86,21 @@ func (s *Service) Execute(ctx context.Context, userID int64) (*Response, error) 
 			return httpx.Internal(err)
 		}
 
+		// ✅ FIX 4: تحويل row.Xmin (string) إلى pgtype.Uint32
+		var xmin pgtype.Uint32
+		if row.Xmin != "" {
+			val, err := strconv.ParseUint(row.Xmin, 10, 32)
+			if err == nil {
+				xmin = pgtype.Uint32{Uint32: uint32(val), Valid: true}
+			}
+		}
+
+		// ✅ FIX 2 & 3: استخدام الأنواع الصحيحة لـ UpdateVerificationStatusParams
 		affected, err := q.UpdateVerificationStatus(ctx, db.UpdateVerificationStatusParams{
 			ID:                 profile.ID,
-			VerificationStatus: string(doctorprofile.StatusPendingReview),
-			SubmittedAt:        &now,
-			Xmin:               row.Xmin,
+			VerificationStatus: db.VerificationStatus(doctorprofile.StatusPendingReview), // ✅ تحويل إلى db.VerificationStatus
+			SubmittedAt:        pgtype.Timestamptz{Time: now, Valid: true},               // ✅ استخدام pgtype.Timestamptz بدلاً من *time.Time
+			Xmin:               xmin,                                                     // ✅ استخدام المتغير المحول
 		})
 		if err != nil {
 			return httpx.Internal(err)

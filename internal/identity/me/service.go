@@ -6,14 +6,20 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	filescontracts "tibi/internal/files/contracts"
 	"tibi/internal/identity/me/db"
 	"tibi/internal/platform/database"
 	"tibi/internal/platform/httpx"
 )
 
-type Service struct{ db *database.DB }
+type Service struct {
+	db    *database.DB
+	files filescontracts.API // ✅ Added as per Slice 12b
+}
 
-func NewService(db *database.DB) *Service { return &Service{db: db} }
+func NewService(db *database.DB, files filescontracts.API) *Service {
+	return &Service{db: db, files: files}
+}
 
 type PatientProfile struct {
 	ID                    int64   `json:"id"`
@@ -61,11 +67,23 @@ func (s *Service) Execute(ctx context.Context, userID int64) (*Response, error) 
 		return nil, httpx.Internal(err)
 	}
 
+	// ✅ FIX: Resolve Profile Image URL based on Slice 12b spec
+	// Note: Because emit_pointers_for_null_types is true for 'me', these are *int64 and *string
+	var imageURL *string
+	if row.ProfileImageFileID != nil {
+		u, err := s.files.PresignGet(ctx, *row.ProfileImageFileID, 86400)
+		if err == nil {
+			imageURL = &u
+		}
+	} else if row.ProfileImageUrl != nil {
+		imageURL = row.ProfileImageUrl
+	}
+
 	resp := &Response{
 		ID:              row.ID,
 		Email:           row.Email,
 		Role:            string(row.Role),
-		ProfileImageURL: row.ProfileImageUrl,
+		ProfileImageURL: imageURL, // ✅ Use resolved URL
 		CreatedAt:       row.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
 	}
 
@@ -88,19 +106,24 @@ func (s *Service) Execute(ctx context.Context, userID int64) (*Response, error) 
 		if err != nil {
 			return nil, httpx.Internal(err)
 		}
-		status := derefString(row.DoctorVerificationStatus)
+
+		var status string
+		if row.DoctorVerificationStatus.Valid {
+			status = string(row.DoctorVerificationStatus.VerificationStatus)
+		}
+
 		resp.DoctorProfile = &DoctorProfile{
 			ID:                   *row.DoctorID,
 			FullName:             derefString(row.DoctorFullName),
 			Bio:                  derefString(row.DoctorBio),
-			ConsultationFee:      derefString(row.DoctorConsultationFee),
+			ConsultationFee:      row.DoctorConsultationFee,
 			Currency:             derefString(row.DoctorCurrency),
 			ClinicName:           derefString(row.DoctorClinicName),
 			ClinicAddress:        derefString(row.DoctorClinicAddress),
 			MedicalLicenseNumber: row.DoctorMedicalLicenseNumber,
 			IsVerified:           status == "Verified",
 			VerificationStatus:   status,
-			AverageRating:        derefString(row.DoctorAverageRating),
+			AverageRating:        row.DoctorAverageRating,
 			RatingCount:          int(derefInt32(row.DoctorRatingCount)),
 			SpecialtyIDs:         specIDs,
 		}
@@ -109,6 +132,7 @@ func (s *Service) Execute(ctx context.Context, userID int64) (*Response, error) 
 	return resp, nil
 }
 
+// ✅ Helper functions preserved as requested
 func derefString(p *string) string {
 	if p == nil {
 		return ""

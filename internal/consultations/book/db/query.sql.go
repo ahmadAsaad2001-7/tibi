@@ -55,6 +55,17 @@ func (q *Queries) CountActiveSlot(ctx context.Context, arg CountActiveSlotParams
 	return n, err
 }
 
+const getDoctorUserID = `-- name: GetDoctorUserID :one
+SELECT user_id FROM doctors_profiles WHERE id = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) GetDoctorUserID(ctx context.Context, id int64) (int64, error) {
+	row := q.db.QueryRow(ctx, getDoctorUserID, id)
+	var user_id int64
+	err := row.Scan(&user_id)
+	return user_id, err
+}
+
 const getPatientProfileForUser = `-- name: GetPatientProfileForUser :one
 SELECT id FROM patients_profiles WHERE user_id = $1 AND deleted_at IS NULL
 `

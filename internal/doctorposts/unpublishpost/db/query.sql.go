@@ -41,18 +41,18 @@ func (q *Queries) ProfileID(ctx context.Context, userID int64) (int64, error) {
 
 const unpublish = `-- name: Unpublish :execrows
 UPDATE content_posts
-SET is_published = false, published_at = NULL, updated_at = $3
-WHERE id = $1 AND doctor_profile_id = $2 AND deleted_at IS NULL AND is_published = true
+SET is_published = false, published_at = NULL, updated_at = $1
+WHERE id = $2 AND doctor_profile_id = $3 AND deleted_at IS NULL AND is_published = true
 `
 
 type UnpublishParams struct {
+	UpdatedAt       pgtype.Timestamptz
 	ID              int64
 	DoctorProfileID int64
-	UpdatedAt       pgtype.Timestamptz
 }
 
 func (q *Queries) Unpublish(ctx context.Context, arg UnpublishParams) (int64, error) {
-	result, err := q.db.Exec(ctx, unpublish, arg.ID, arg.DoctorProfileID, arg.UpdatedAt)
+	result, err := q.db.Exec(ctx, unpublish, arg.UpdatedAt, arg.ID, arg.DoctorProfileID)
 	if err != nil {
 		return 0, err
 	}

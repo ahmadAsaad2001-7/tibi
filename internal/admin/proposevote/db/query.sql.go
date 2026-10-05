@@ -48,7 +48,10 @@ INSERT INTO admin_votes (
     action_type, target_user_id, status, required_votes,
     votes_for, votes_against, expires_at, resolved_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+VALUES (
+           $1, $2, $3, $4,
+           $5, $6, $7, $8
+       )
     RETURNING id, created_at
 `
 
@@ -104,24 +107,4 @@ func (q *Queries) InsertVoteParticipant(ctx context.Context, arg InsertVoteParti
 		arg.VotedAt,
 	)
 	return err
-}
-
-const resolveVoteImmediately = `-- name: ResolveVoteImmediately :execrows
-UPDATE admin_votes
-SET status = 'Resolved', resolved_at = $2, updated_at = now()
-WHERE id = $1 AND status = 'Open' AND xmin::text = $3
-`
-
-type ResolveVoteImmediatelyParams struct {
-	ID         int64
-	ResolvedAt pgtype.Timestamptz
-	Xmin       pgtype.Uint32
-}
-
-func (q *Queries) ResolveVoteImmediately(ctx context.Context, arg ResolveVoteImmediatelyParams) (int64, error) {
-	result, err := q.db.Exec(ctx, resolveVoteImmediately, arg.ID, arg.ResolvedAt, arg.Xmin)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
 }

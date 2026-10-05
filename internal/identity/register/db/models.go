@@ -614,6 +614,32 @@ type ClinicalPrescription struct {
 	Xmin             pgtype.Uint32
 }
 
+type CommunicationMessage struct {
+	ID             int64
+	ConsultationID int64
+	SenderUserID   int64
+	Content        string
+	SentAt         pgtype.Timestamptz
+	ReadAt         pgtype.Timestamptz
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	DeletedAt      pgtype.Timestamptz
+}
+
+type CommunicationNotification struct {
+	ID        int64
+	UserID    int64
+	Type      string
+	Title     string
+	Body      string
+	Payload   []byte
+	IsRead    bool
+	ReadAt    pgtype.Timestamptz
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+	DeletedAt pgtype.Timestamptz
+}
+
 type ConsultationsConsultation struct {
 	ID               int64
 	PatientProfileID int64
@@ -652,7 +678,7 @@ type ContentPostAttachment struct {
 	ID           int64
 	DoctorPostID int64
 	FileUrl      *string
-	FileType     string
+	FileType     *string
 	FileID       *int64
 }
 
@@ -733,14 +759,15 @@ type IdentityRefreshToken struct {
 }
 
 type IdentityUser struct {
-	ID              int64
-	Email           string
-	PasswordHash    string
-	Role            user.Role
-	ProfileImageUrl *string
-	CreatedAt       pgtype.Timestamptz
-	UpdatedAt       pgtype.Timestamptz
-	DeletedAt       pgtype.Timestamptz
+	ID                 int64
+	Email              string
+	PasswordHash       string
+	Role               user.Role
+	ProfileImageUrl    *string
+	CreatedAt          pgtype.Timestamptz
+	UpdatedAt          pgtype.Timestamptz
+	DeletedAt          pgtype.Timestamptz
+	ProfileImageFileID *int64
 }
 
 type PatientsProfile struct {

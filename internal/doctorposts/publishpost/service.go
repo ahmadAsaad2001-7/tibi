@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype" // ✅ أضفنا هذا الاستيراد
 
 	"tibi/internal/doctorposts/publishpost/db"
 	"tibi/internal/platform/database"
@@ -36,7 +37,12 @@ func (s *Service) Execute(ctx context.Context, userID, postID int64) (*Response,
 		}
 		return nil, httpx.Internal(err)
 	}
-	published, err := q.IsPublished(ctx, postID, profileID)
+
+	// ✅ FIX 1: استخدام IsPublishedParams بدلاً من الوسائط المتعددة
+	published, err := q.IsPublished(ctx, db.IsPublishedParams{
+		ID:              postID,
+		DoctorProfileID: profileID,
+	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, httpx.NotFound("post not found")
@@ -46,9 +52,29 @@ func (s *Service) Execute(ctx context.Context, userID, postID int64) (*Response,
 	if published {
 		return nil, httpx.Conflict("post is already published")
 	}
+
 	now := s.clock()
-	if err := q.Publish(ctx, postID, profileID, now); err != nil {
+
+	// ✅ FIX 2: استخدام PublishParams وتغليف الوقت بـ pgtype.Timestamptz
+	// ✅ FIX 3: التقاط عدد الصفوف المتأثرة (n) لأن الاستعلام من نوع :execrows
+	n, err := q.Publish(ctx, db.PublishParams{
+		ID:              postID,
+		DoctorProfileID: profileID,
+		PublishedAt:     pgtype.Timestamptz{Time: now, Valid: true},
+		UpdatedAt:       pgtype.Timestamptz{Time: now, Valid: true},
+	})
+	if err != nil {
 		return nil, httpx.Internal(err)
 	}
-	return &Response{ID: postID, IsPublished: true, PublishedAt: now}, nil
+
+	// ✅ FIX 4: التحقق من أن الصف تم تحديثه فعلياً
+	if n == 0 {
+		return nil, httpx.NotFound("post not found or already published")
+	}
+
+	return &Response{
+		ID:          postID,
+		IsPublished: true,
+		PublishedAt: now,
+	}, nil
 }

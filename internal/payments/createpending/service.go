@@ -2,7 +2,10 @@ package createpending
 
 import (
 	"context"
+	"fmt"
 	"strconv"
+
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"tibi/internal/payments/kashier"
 
@@ -52,16 +55,24 @@ func (s *Service) Execute(ctx context.Context, in Input) (*Output, error) {
 		return nil, httpx.Internal(err)
 	}
 
+	// ✅ FIX 1: Convert string amount to pgtype.Numeric
+	var amount pgtype.Numeric
+	if err := amount.Scan(in.Amount); err != nil {
+		return nil, httpx.Internal(fmt.Errorf("invalid amount format: %w", err))
+	}
+
 	q := db.New(s.db.Querier(ctx))
-	checkout := kOut.SessionURL
 	row, err := q.InsertPendingPayment(ctx, db.InsertPendingPaymentParams{
 		PatientProfileID: in.PatientProfileID,
 		DoctorProfileID:  in.DoctorProfileID,
 		ConsultationID:   in.ConsultationID,
-		Amount:           in.Amount,
+		Amount:           amount, // ✅ Fixed: was in.Amount (string)
 		Currency:         in.Currency,
-		Channel:          in.Channel,
-		CheckoutUrl:      &checkout,
+		Channel:          db.PaymentChannel(in.Channel), // ✅ Fixed: cast string to db.PaymentChannel
+		CheckoutUrl: pgtype.Text{ // ✅ Fixed: wrap string in pgtype.Text
+			String: kOut.SessionURL,
+			Valid:  true,
+		},
 	})
 	if err != nil {
 		return nil, httpx.Internal(err)

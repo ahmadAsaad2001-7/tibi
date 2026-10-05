@@ -28,7 +28,7 @@ sql:
     schema:
       - "migrations/"
       - "sqlc/catalog.sql"
-    queries: "internal/identity/me/db/query.sql"
+    queries: "internal/identity/me/query.sql"
     gen:
       go:
         package: "db"
@@ -272,7 +272,7 @@ sql:
     schema:
       - "migrations/"
       - "sqlc/catalog.sql"
-    queries: "internal/doctorposts/createpost/db/query.sql"
+    queries: "internal/doctorposts/createpost/query.sql"
     gen:
       go:
         package: "db"
@@ -696,3 +696,92 @@ sql:
         out: "internal/clinical/scope/db"
         sql_package: "pgx/v5"
         emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/identity/setprofileimage"
+    gen:
+      go:
+        package: "db"
+        out: "internal/identity/setprofileimage/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/communication/sendmessage/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/communication/sendmessage/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/communication/listmessages/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/communication/listmessages/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/communication/createnotification/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/communication/createnotification/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/communication/listnotifications/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/communication/listnotifications/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/communication/markread/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/communication/markread/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/communication/markallread/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/communication/markallread/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/communication/unreadcount/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/communication/unreadcount/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+
