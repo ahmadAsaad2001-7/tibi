@@ -44,6 +44,24 @@ type Config struct {
 	S3UseSSL    bool   `env:"S3_USE_SSL"   envDefault:"true"`
 	S3Region    string `env:"S3_REGION"`
 	S3PublicURL string `env:"S3_PUBLIC_URL"`
+
+	// Email driver: "logger" (dev only) or "smtp".
+	EmailDriver string `env:"EMAIL_DRIVER" envDefault:"logger"`
+
+	SMTPHost     string `env:"SMTP_HOST"`
+	SMTPPort     int    `env:"SMTP_PORT"    envDefault:"587"`
+	SMTPUsername string `env:"SMTP_USERNAME"`
+	SMTPPassword string `env:"SMTP_PASSWORD"`
+	SMTPFrom     string `env:"SMTP_FROM"`
+
+	// AppBaseURL is the public base URL used to build password-reset and
+	// email-verification links sent out by slice 15.
+	AppBaseURL string `env:"APP_BASE_URL" envDefault:"http://localhost:3000"`
+
+	// RateLimitDriver: "memory" (in-process) or "postgres" (persistent).
+	// Memory is fine for single-instance deployments; postgres survives
+	// restarts and is shared across instances.
+	RateLimitDriver string `env:"RATE_LIMIT_DRIVER" envDefault:"memory"`
 }
 
 // Load reads config from the process environment.
@@ -89,12 +107,35 @@ func (c *Config) Validate() error {
 			}
 		}
 		// Optional: You could also add a check here to ensure WSOriginPatterns doesn't contain "*" in production
+		if c.EmailDriver == "logger" {
+			return configError("EMAIL_DRIVER=logger is not permitted in production")
+		}
+		if c.AppBaseURL == "http://localhost:3000" {
+			return configError("APP_BASE_URL must be set in production")
+		}
+	}
+
+	switch c.EmailDriver {
+	case "logger", "smtp":
+	default:
+		return configError("unknown EMAIL_DRIVER: " + c.EmailDriver)
+	}
+	if c.EmailDriver == "smtp" {
+		if c.SMTPHost == "" || c.SMTPFrom == "" {
+			return configError("SMTP_HOST and SMTP_FROM are required when EMAIL_DRIVER=smtp")
+		}
 	}
 
 	switch c.StorageDriver {
 	case "local", "s3":
 	default:
 		return configError("unknown STORAGE_DRIVER: " + c.StorageDriver)
+	}
+
+	switch c.RateLimitDriver {
+	case "memory", "postgres":
+	default:
+		return configError("unknown RATE_LIMIT_DRIVER: " + c.RateLimitDriver)
 	}
 
 	return nil

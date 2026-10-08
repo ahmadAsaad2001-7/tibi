@@ -46,3 +46,55 @@ Change: every clinical write upsertrecord, addattachment, and
         unprocessable.
 Direction: Consultations remains the authority on consultation state;
            Clinical never re-implements status logic.
+
+## R24 — identity_users.email_verified_at column added
+
+Date: slice 15.
+Reason: email verification requires a persistent, per-user flag. Nothing
+        gated on it yet (SD35), but /auth/me surfaces email_verified and the
+        column exists for a future login gate.
+Change: identity_users.email_verified_at TIMESTAMPTZ added. Existing users
+        get NULL; new registrations start NULL; the verification flow sets it.
+        A partial index (email_verified_at IS NULL AND deleted_at IS NULL)
+        supports "who still needs a nudge" queries at no write cost.
+        The confirm flow sets it idempotently via `AND email_verified_at
+        IS NULL`.
+Direction: SD35 — email verification is not required to log in yet. Gating is
+           a future product decision that reads this column.
+
+## R25 — Password reset is the second flow that invalidates refresh tokens
+
+Date: slice 15.
+Reason: a reset is a security event (SD34). Slice 1's logout revoked one
+        token; a reset must terminate every active session, otherwise a stolen
+        old session survives the password change.
+Change: confirmpasswordreset runs RevokeAllRefreshTokens inside the same
+        transaction as ConsumePasswordReset + UpdateUserPassword. Uses the
+        existing identity_refresh_tokens.revoked_at column.
+Direction: refresh-token invalidation is expressed via revoked_at everywhere;
+           no hard delete.
+
+## R26 — ratelimit.Limiter signature changed
+
+Date: slice 16.
+Reason: slice 14's Allow(key string) bool cannot serve a persistent
+        implementation. A Postgres-backed limiter needs a context and can
+        error.
+Change: new signature Allow(ctx, key) (bool, error). All five call sites
+        updated. Errors fail open (SD36): log at WARN and allow.
+        ratelimit.AllowOrFailOpen is the shared helper. Memory and Postgres
+        implementations live side by side, selected by RATE_LIMIT_DRIVER.
+Direction: R22 still holds for Memory; Postgres is the multi-instance answer.
+           Limit behavior otherwise unchanged (SD38 fixed window, Go-computed
+           bucket).
+
+## R27 — database.Connect installs a query tracer
+
+Date: slice 16.
+Reason: observability (SD39). One slog call per query was judged cheaper than
+        a feature flag.
+Change: cfg.ConnConfig.Tracer = NewTracer(log). Every query logs at DEBUG
+        with op, duration, and trace ID; slow queries (>100ms) log at WARN.
+        The tracer also feeds metrics (SD40). Trace ID is read from a shared
+        platform/trace package so httpx and database never import each other.
+Direction: tracer is always on, no opt-out. Prometheus is served on /metrics.

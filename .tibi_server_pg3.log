@@ -1,0 +1,30 @@
+{"time":"2026-10-07T07:57:20.954221062+03:00","level":"INFO","msg":"http_listening","port":"8080","env":"development"}
+{"time":"2026-10-07T07:57:26.964038911+03:00","level":"INFO","msg":"http_request","method":"GET","path":"/readyz","status":200,"duration_ms":1,"trace_id":"a486f46013c5f21875c1f3791a0bd3f8"}
+{"time":"2026-10-07T07:57:26.980189678+03:00","level":"DEBUG","msg":"db_query","op":"INSERT","duration_ms":8,"trace_id":"e803ea8f843e9af94137d7120838c88a"}
+{"time":"2026-10-07T07:57:26.980218275+03:00","level":"INFO","msg":"http_error","code":"rate_limited","status":429,"path":"/api/v1/auth/forgot-password","method":"POST","trace_id":"e803ea8f843e9af94137d7120838c88a"}
+{"time":"2026-10-07T07:57:26.980250355+03:00","level":"INFO","msg":"http_request","method":"POST","path":"/api/v1/auth/forgot-password","status":429,"duration_ms":8,"trace_id":"e803ea8f843e9af94137d7120838c88a"}
+{"time":"2026-10-07T07:58:50.937010281+03:00","level":"DEBUG","msg":"db_query","op":"begin","duration_ms":0,"trace_id":"b336f1f39898185a9e3aa840cd45a6e7"}
+{"time":"2026-10-07T07:58:50.938681564+03:00","level":"DEBUG","msg":"db_query","op":"--","duration_ms":1,"trace_id":"b336f1f39898185a9e3aa840cd45a6e7"}
+{"time":"2026-10-07T07:58:51.029493707+03:00","level":"DEBUG","msg":"db_query","op":"--","duration_ms":17,"trace_id":"b336f1f39898185a9e3aa840cd45a6e7"}
+{"time":"2026-10-07T07:58:51.038182977+03:00","level":"DEBUG","msg":"db_query","op":"--","duration_ms":8,"trace_id":"b336f1f39898185a9e3aa840cd45a6e7"}
+{"time":"2026-10-07T07:58:51.047158643+03:00","level":"DEBUG","msg":"db_query","op":"INSERT","duration_ms":8,"trace_id":"b336f1f39898185a9e3aa840cd45a6e7"}
+{"time":"2026-10-07T07:58:51.0529473+03:00","level":"DEBUG","msg":"db_query","op":"commit","duration_ms":5,"trace_id":"b336f1f39898185a9e3aa840cd45a6e7"}
+{"time":"2026-10-07T07:58:51.05694647+03:00","level":"DEBUG","msg":"db_query","op":"INSERT","duration_ms":3,"trace_id":"b336f1f39898185a9e3aa840cd45a6e7"}
+{"time":"2026-10-07T07:58:51.057147901+03:00","level":"DEBUG","msg":"db_query","op":"begin","duration_ms":0,"trace_id":"b336f1f39898185a9e3aa840cd45a6e7"}
+{"time":"2026-10-07T07:58:51.057527915+03:00","level":"DEBUG","msg":"db_query","op":"--","duration_ms":0,"trace_id":"b336f1f39898185a9e3aa840cd45a6e7"}
+{"time":"2026-10-07T07:58:51.059692777+03:00","level":"DEBUG","msg":"db_query","op":"--","duration_ms":2,"trace_id":"b336f1f39898185a9e3aa840cd45a6e7"}
+{"time":"2026-10-07T07:58:51.060713522+03:00","level":"DEBUG","msg":"db_query","op":"--","duration_ms":0,"trace_id":"b336f1f39898185a9e3aa840cd45a6e7"}
+{"time":"2026-10-07T07:58:51.064027735+03:00","level":"DEBUG","msg":"db_query","op":"commit","duration_ms":3,"trace_id":"b336f1f39898185a9e3aa840cd45a6e7"}
+{"time":"2026-10-07T07:58:51.064231602+03:00","level":"INFO","msg":"email_out","to":"flow15@example.com","subject":"Verify your email","body_len":167}
+{"time":"2026-10-07T07:58:51.064707776+03:00","level":"INFO","msg":"http_request","method":"POST","path":"/api/v1/auth/register","status":201,"duration_ms":128,"trace_id":"b336f1f39898185a9e3aa840cd45a6e7"}
+{"time":"2026-10-07T08:04:35.410703791+03:00","level":"DEBUG","msg":"db_query","op":"begin","duration_ms":0,"trace_id":"42ebc5e827f7ea1aeeadc0b5b865416f"}
+{"time":"2026-10-07T08:04:35.418110528+03:00","level":"DEBUG","msg":"db_query","op":"--","duration_ms":7,"trace_id":"42ebc5e827f7ea1aeeadc0b5b865416f"}
+{"time":"2026-10-07T08:04:35.418444904+03:00","level":"DEBUG","msg":"db_query","op":"rollback","duration_ms":0,"trace_id":"42ebc5e827f7ea1aeeadc0b5b865416f"}
+{"time":"2026-10-07T08:04:35.418481441+03:00","level":"INFO","msg":"http_error","code":"not_found","status":404,"path":"/api/v1/auth/verify-email/confirm","method":"POST","trace_id":"42ebc5e827f7ea1aeeadc0b5b865416f"}
+{"time":"2026-10-07T08:04:35.418557966+03:00","level":"INFO","msg":"http_request","method":"POST","path":"/api/v1/auth/verify-email/confirm","status":404,"duration_ms":9,"trace_id":"42ebc5e827f7ea1aeeadc0b5b865416f"}
+{"time":"2026-10-07T08:04:35.428630807+03:00","level":"ERROR","msg":"db_query_failed","op":"--","duration_ms":18,"trace_id":"b77b63c0b32a6d61802e9fb0f2a1f469","err":"can't scan into dest[16]: cannot scan NULL into *string"}
+{"time":"2026-10-07T08:04:35.428821264+03:00","level":"ERROR","msg":"http_error","code":"internal_error","status":500,"path":"/api/v1/auth/me","method":"GET","trace_id":"b77b63c0b32a6d61802e9fb0f2a1f469","err":"can't scan into dest[16]: cannot scan NULL into *string"}
+{"time":"2026-10-07T08:04:35.429040605+03:00","level":"INFO","msg":"http_request","method":"GET","path":"/api/v1/auth/me","status":500,"duration_ms":20,"trace_id":"b77b63c0b32a6d61802e9fb0f2a1f469"}
+{"time":"2026-10-07T08:07:20.957052719+03:00","level":"DEBUG","msg":"db_query","op":"UPDATE","duration_ms":2}
+{"time":"2026-10-07T08:17:20.957706287+03:00","level":"DEBUG","msg":"db_query","op":"UPDATE","duration_ms":2}
+{"time":"2026-10-07T08:21:24.733316896+03:00","level":"INFO","msg":"shutdown_initiated"}

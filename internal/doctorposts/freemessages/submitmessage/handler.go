@@ -1,0 +1,59 @@
+package submitmessage
+
+import (
+	"encoding/json"
+	"net/http"
+	"strconv"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-playground/validator/v10"
+
+	"tibi/internal/platform/httpx"
+	"tibi/internal/platform/ratelimit"
+)
+
+var v = validator.New()
+
+type Handler struct{ svc *Service }
+
+func NewHandler(svc *Service) *Handler { return &Handler{svc: svc} }
+
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	doctorID, err := strconv.ParseInt(chi.URLParam(r, "doctorId"), 10, 64)
+	if err != nil || doctorID <= 0 {
+		httpx.Error(w, r, httpx.BadRequest("invalid doctor id"))
+		return
+	}
+
+	var cmd Command
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&cmd); err != nil {
+		httpx.Error(w, r, httpx.BadRequest("malformed json"))
+		return
+	}
+	cmd.DoctorProfileID = doctorID
+	cmd.SenderIP = ratelimit.ClientIP(r.RemoteAddr, r.Header.Get("X-Forwarded-For"))
+
+	if err := v.Struct(cmd); err != nil {
+		httpx.Error(w, r, httpx.ValidationFailed(validationDetails(err)))
+		return
+	}
+
+	resp, err := h.svc.Execute(r.Context(), cmd)
+	if err != nil {
+		httpx.Error(w, r, err)
+		return
+	}
+	httpx.JSON(w, http.StatusAccepted, resp)
+}
+
+func validationDetails(err error) map[string]string {
+	out := map[string]string{}
+	if ves, ok := err.(validator.ValidationErrors); ok {
+		for _, fe := range ves {
+			out[fe.Field()] = fe.Tag()
+		}
+	}
+	return out
+}

@@ -2,6 +2,15 @@ package adminvote
 
 import "time"
 
+// Vote lifecycle constants shared across the admin module.
+const (
+	// RequiredVotes is the number of For votes required to resolve a vote
+	// favorably (two-admin approval, SD51).
+	RequiredVotes = 2
+	// DefaultTTL is how long an open vote stays actionable before expiring.
+	DefaultTTL = 72 * time.Hour
+)
+
 type ActionType string
 
 const (
@@ -46,6 +55,10 @@ type Vote struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	DeletedAt     *time.Time
+
+	// Payload is action-specific JSON (SD52). For BanUser it holds
+	// {"reason": "...", "days": 7}. nil when the vote has no metadata.
+	Payload []byte
 
 	// Loaded eagerly. Append-only; only CastVote adds to it.
 	Participants []Participant

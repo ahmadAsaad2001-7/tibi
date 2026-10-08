@@ -7,6 +7,7 @@ package db
 import (
 	"database/sql/driver"
 	"fmt"
+	"net/netip"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"tibi/internal/identity/user"
@@ -540,6 +541,21 @@ func (ns NullVoteStatus) Value() (driver.Value, error) {
 	return string(ns.VoteStatus), nil
 }
 
+type AdminUserSuspension struct {
+	ID         int64
+	UserID     int64
+	Reason     string
+	FromTs     pgtype.Timestamptz
+	ToTs       pgtype.Timestamptz
+	LiftedAt   pgtype.Timestamptz
+	LiftedBy   *int64
+	LiftReason *string
+	VoteID     *int64
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+	Xmin       pgtype.Uint32
+}
+
 type AdminVote struct {
 	ID            int64
 	ActionType    string
@@ -553,6 +569,7 @@ type AdminVote struct {
 	CreatedAt     pgtype.Timestamptz
 	UpdatedAt     pgtype.Timestamptz
 	DeletedAt     pgtype.Timestamptz
+	Payload       []byte
 	Xmin          pgtype.Uint32
 }
 
@@ -682,6 +699,22 @@ type ContentPostAttachment struct {
 	FileID       *int64
 }
 
+type DoctorpostsFreeMessage struct {
+	ID              int64
+	DoctorProfileID int64
+	SenderName      string
+	SenderEmail     string
+	SenderPhone     *string
+	Content         string
+	IsRepliedTo     bool
+	RepliedAt       pgtype.Timestamptz
+	ReplyContent    *string
+	SenderIp        *netip.Addr
+	CreatedAt       pgtype.Timestamptz
+	UpdatedAt       pgtype.Timestamptz
+	Xmin            pgtype.Uint32
+}
+
 type DoctorsClinicSession struct {
 	ID              int64
 	DoctorProfileID int64
@@ -749,6 +782,26 @@ type DoctorsWeeklySchedule struct {
 	UpdatedAt           pgtype.Timestamptz
 }
 
+type IdentityEmailVerification struct {
+	ID         int64
+	UserID     int64
+	TokenHash  string
+	ExpiresAt  pgtype.Timestamptz
+	ConsumedAt pgtype.Timestamptz
+	CreatedAt  pgtype.Timestamptz
+	Xmin       pgtype.Uint32
+}
+
+type IdentityPasswordReset struct {
+	ID         int64
+	UserID     int64
+	TokenHash  string
+	ExpiresAt  pgtype.Timestamptz
+	ConsumedAt pgtype.Timestamptz
+	CreatedAt  pgtype.Timestamptz
+	Xmin       pgtype.Uint32
+}
+
 type IdentityRefreshToken struct {
 	ID        int64
 	UserID    int64
@@ -768,6 +821,7 @@ type IdentityUser struct {
 	UpdatedAt          pgtype.Timestamptz
 	DeletedAt          pgtype.Timestamptz
 	ProfileImageFileID *int64
+	EmailVerifiedAt    pgtype.Timestamptz
 }
 
 type PatientsProfile struct {
@@ -811,6 +865,12 @@ type PlatformFile struct {
 	ContentSha256 string
 	CreatedAt     pgtype.Timestamptz
 	DeletedAt     pgtype.Timestamptz
+}
+
+type PlatformRateLimit struct {
+	Key         string
+	WindowStart pgtype.Timestamptz
+	Count       int32
 }
 
 type QueueEntry struct {

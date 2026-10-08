@@ -30,6 +30,9 @@ func Unauthenticated(msg string) *APIError {
 func Forbidden(msg string) *APIError { return &APIError{Status: 403, Code: "forbidden", Message: msg} }
 func NotFound(msg string) *APIError  { return &APIError{Status: 404, Code: "not_found", Message: msg} }
 func Conflict(msg string) *APIError  { return &APIError{Status: 409, Code: "conflict", Message: msg} }
+func ErrorRateLimited(msg string) *APIError {
+	return &APIError{Status: 429, Code: "rate_limited", Message: msg}
+}
 func AlreadyExists(msg string) *APIError {
 	return &APIError{Status: 409, Code: "already_exists", Message: msg}
 }

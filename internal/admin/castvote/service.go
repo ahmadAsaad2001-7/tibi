@@ -2,6 +2,7 @@ package castvote
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	"tibi/internal/admin/adminvote"
 	"tibi/internal/admin/castvote/db"
+	"tibi/internal/admin/createsuspension"
 	doctorscontracts "tibi/internal/doctors/contracts"
 	identitycontracts "tibi/internal/identity/contracts"
 	"tibi/internal/platform/database"
@@ -19,14 +21,15 @@ import (
 )
 
 type Service struct {
-	db       *database.DB
-	doctors  doctorscontracts.API
-	identity identitycontracts.API
-	clock    func() time.Time
+	db          *database.DB
+	doctors     doctorscontracts.API
+	identity    identitycontracts.API
+	suspensions *createsuspension.Service
+	clock       func() time.Time
 }
 
-func NewService(db *database.DB, doctors doctorscontracts.API, identity identitycontracts.API) *Service {
-	return &Service{db: db, doctors: doctors, identity: identity, clock: time.Now}
+func NewService(db *database.DB, doctors doctorscontracts.API, identity identitycontracts.API, suspensions *createsuspension.Service) *Service {
+	return &Service{db: db, doctors: doctors, identity: identity, suspensions: suspensions, clock: time.Now}
 }
 
 type Command struct {
@@ -165,7 +168,26 @@ func (s *Service) applyAction(ctx context.Context, vote *adminvote.Vote) error {
 		return nil
 
 	case adminvote.ActionBanUser:
-		return httpx.Unprocessable("BanUser is not yet supported")
+		// applyAction runs only when the vote resolved For (see Execute),
+		// so no "approved" check is needed here.
+		var payload struct {
+			Reason string `json:"reason"`
+			Days   int    `json:"days"`
+		}
+		if len(vote.Payload) > 0 {
+			if err := json.Unmarshal(vote.Payload, &payload); err != nil {
+				return httpx.Internal(err)
+			}
+		}
+		if payload.Reason == "" {
+			return httpx.Internal(errors.New("BanUser vote resolved without reason"))
+		}
+		voteID := vote.ID
+		if s.suspensions == nil {
+			return httpx.Internal(errors.New("suspension service not configured"))
+		}
+		_, err := s.suspensions.Create(ctx, vote.TargetUserID, payload.Reason, payload.Days, &voteID)
+		return err
 	}
 	return httpx.Internal(errors.New("unknown action type"))
 }
@@ -199,6 +221,7 @@ func hydrateVote(row db.GetVoteForUpdateRow, participants []db.AdminVoteParticip
 		VotesAgainst:  int(row.VotesAgainst),
 		ExpiresAt:     row.ExpiresAt.Time,
 		ResolvedAt:    resolvedAt,
+		Payload:       row.Payload,
 		Participants:  parts,
 	}
 }

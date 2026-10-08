@@ -3,6 +3,7 @@ package register
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -16,6 +17,12 @@ import (
 	"tibi/internal/platform/httpx"
 )
 
+// EmailVerifier is the slice-15 integration point. Declared here so
+// register does not import the whole requestemailverification package.
+type EmailVerifier interface {
+	RequestVerification(ctx context.Context, userID int64) error
+}
+
 type Service struct {
 	db       *database.DB
 	hasher   *auth.PasswordHasher
@@ -23,10 +30,23 @@ type Service struct {
 	refresh  *auth.RefreshStore
 	patients patients.API
 	doctors  contracts.API
+	verifier EmailVerifier
 }
 
-func NewService(db *database.DB, hasher *auth.PasswordHasher, jwt *auth.TokenIssuer, refresh *auth.RefreshStore, patientsAPI patients.API, doctorsAPI contracts.API) *Service {
-	return &Service{db: db, hasher: hasher, jwt: jwt, refresh: refresh, patients: patientsAPI, doctors: doctorsAPI}
+func NewService(
+	db *database.DB,
+	hasher *auth.PasswordHasher,
+	jwt *auth.TokenIssuer,
+	refresh *auth.RefreshStore,
+	patientsAPI patients.API,
+	doctorsAPI contracts.API,
+	verifier EmailVerifier,
+) *Service {
+	return &Service{
+		db: db, hasher: hasher, jwt: jwt, refresh: refresh,
+		patients: patientsAPI, doctors: doctorsAPI,
+		verifier: verifier,
+	}
 }
 
 type Response struct {
@@ -44,11 +64,11 @@ type Response struct {
 
 func (s *Service) Execute(ctx context.Context, cmd Command) (*Response, error) {
 	var resp *Response
+	var userID int64
 
 	err := s.db.WithTx(ctx, func(ctx context.Context) error {
 		q := db.New(s.db.Querier(ctx))
 
-		// Uniqueness check inside the tx.
 		if _, err := q.FindUserByEmail(ctx, cmd.Email); err == nil {
 			return httpx.AlreadyExists("email already registered")
 		} else if !errors.Is(err, pgx.ErrNoRows) {
@@ -73,8 +93,8 @@ func (s *Service) Execute(ctx context.Context, cmd Command) (*Response, error) {
 		if err != nil {
 			return httpx.Internal(err)
 		}
+		userID = row.ID
 
-		// Cross-module call. Shares this transaction.
 		switch role {
 		case user.RolePatient:
 			if _, err := s.patients.CreatePatientProfile(ctx, patients.CreatePatientProfileInput{
@@ -113,9 +133,18 @@ func (s *Service) Execute(ctx context.Context, cmd Command) (*Response, error) {
 		resp.User.CreatedAt = row.CreatedAt.Time
 		return nil
 	})
-
 	if err != nil {
 		return nil, err
 	}
+
+	// Slice 15: after commit, best-effort verification email.
+	// SD28: failure here does not roll back registration.
+	if s.verifier != nil {
+		if err := s.verifier.RequestVerification(ctx, userID); err != nil {
+			slog.Warn("verification email failed",
+				"user_id", userID, "err", err)
+		}
+	}
+
 	return resp, nil
 }

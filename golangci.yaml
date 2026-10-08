@@ -126,6 +126,17 @@ linters-settings:
           - github.com/go-chi/chi/v5
           - github.com/go-playground/validator/v10
 
+      doctorposts:
+        files: ["**/internal/doctorposts/**"]
+        allow:
+          - $gostd
+          - tibi/internal/doctorposts
+          - tibi/internal/platform
+          - tibi/internal/platform/email
+          - tibi/internal/platform/ratelimit
+          - github.com/go-chi/chi/v5
+          - github.com/go-playground/validator/v10
+          - github.com/jackc/pgx/v5
 
       clinical:
         files: [ "**/internal/clinical/**" ]

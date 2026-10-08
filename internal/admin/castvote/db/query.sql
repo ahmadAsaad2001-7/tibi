@@ -1,7 +1,7 @@
 -- name: GetVoteForUpdate :one
 SELECT
     id, action_type, target_user_id, status, required_votes,
-    votes_for, votes_against, expires_at, resolved_at,
+    votes_for, votes_against, expires_at, resolved_at, payload,
     xmin::text AS xmin
 FROM admin_votes
 WHERE id = @id AND deleted_at IS NULL;

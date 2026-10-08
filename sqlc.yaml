@@ -42,6 +42,50 @@ sql:
     schema:
       - "migrations/"
       - "sqlc/catalog.sql"
+    queries: "internal/identity/requestpasswordreset/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/identity/requestpasswordreset/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/identity/confirmpasswordreset/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/identity/confirmpasswordreset/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/identity/requestemailverification/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/identity/requestemailverification/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/identity/confirmemailverification/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/identity/confirmemailverification/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
     queries: "internal/patients/createprofile/db/query.sql"
     gen:
       go:
@@ -128,6 +172,72 @@ sql:
         package: "db"
         out: "internal/admin/listpendingdoctors/db"
         sql_package: "pgx/v5"
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/admin/proposesuspension/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/admin/proposesuspension/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/admin/createsuspension/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/admin/createsuspension/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/admin/liftsuspension/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/admin/liftsuspension/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/admin/listsuspensions/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/admin/listsuspensions/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/admin/activecheck/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/admin/activecheck/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/admin/listusers/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/admin/listusers/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
   - engine: "postgresql"
     schema:
       - "migrations/"
@@ -782,6 +892,39 @@ sql:
       go:
         package: "db"
         out: "internal/communication/unreadcount/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/doctorposts/freemessages/submitmessage/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctorposts/freemessages/submitmessage/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/doctorposts/freemessages/listinbox/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctorposts/freemessages/listinbox/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/doctorposts/freemessages/replymessage/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/doctorposts/freemessages/replymessage/db"
         sql_package: "pgx/v5"
         emit_pointers_for_null_types: true
 

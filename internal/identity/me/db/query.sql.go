@@ -45,6 +45,7 @@ SELECT
     u.role,
     u.profile_image_file_id,  -- ✅ KEPT: Required for the delta's PresignGet logic
     u.profile_image_url,      -- ✅ KEPT: Fallback if file_id is nil or presign fails
+    u.email_verified_at,      -- ✅ Slice 15: surfaced as email_verified in the response
     u.created_at,
     p.id                       AS patient_id,
     p.full_name                AS patient_full_name,
@@ -76,6 +77,7 @@ type GetMeRow struct {
 	Role                         user.Role
 	ProfileImageFileID           *int64
 	ProfileImageUrl              *string
+	EmailVerifiedAt              pgtype.Timestamptz
 	CreatedAt                    pgtype.Timestamptz
 	PatientID                    *int64
 	PatientFullName              *string
@@ -105,6 +107,7 @@ func (q *Queries) GetMe(ctx context.Context, id int64) (GetMeRow, error) {
 		&i.Role,
 		&i.ProfileImageFileID,
 		&i.ProfileImageUrl,
+		&i.EmailVerifiedAt,
 		&i.CreatedAt,
 		&i.PatientID,
 		&i.PatientFullName,

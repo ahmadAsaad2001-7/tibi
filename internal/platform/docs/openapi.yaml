@@ -1,0 +1,1335 @@
+openapi: 3.1.0
+info:
+  title: Tibi API
+  description: |
+    Medical consultation platform API.
+
+    Authenticate with `POST /api/v1/auth/login`, then pass the access token as
+    `Authorization: Bearer <token>`. WebSocket hub uses `?token=<jwt>` on upgrade.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Local development
+tags:
+  - name: Health
+  - name: Auth
+  - name: Doctors
+  - name: Profile
+  - name: Schedule
+  - name: Posts
+  - name: Consultations
+  - name: Clinical
+  - name: Communication
+  - name: Queue
+  - name: Files
+  - name: FreeMessages
+  - name: Admin
+  - name: Realtime
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Legacy health check
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+  /healthz:
+    get:
+      tags: [Health]
+      summary: Liveness probe
+      responses:
+        "200":
+          description: Process is alive
+  /readyz:
+    get:
+      tags: [Health]
+      summary: Readiness probe
+      responses:
+        "200":
+          description: Ready to accept traffic
+        "503":
+          description: Not ready
+  /metrics:
+    get:
+      tags: [Health]
+      summary: Prometheus metrics
+      responses:
+        "200":
+          description: Prometheus text exposition
+
+  /hubs/consultations:
+    get:
+      tags: [Realtime]
+      summary: WebSocket hub
+      description: |
+        Upgrade to WebSocket. Auth via query param `token` (JWT).
+        Clients may join consultation and queue groups after connect.
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "101":
+          description: Switching Protocols
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+
+  /api/v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokens"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokens"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokens"
+
+  /api/v1/auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Request password reset email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "204":
+          description: Accepted (always, to avoid enumeration)
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
+  /api/v1/auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Confirm password reset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token:
+                  type: string
+                password:
+                  type: string
+                  minLength: 8
+      responses:
+        "204":
+          description: Password updated
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/auth/verify-email/confirm:
+    post:
+      tags: [Auth]
+      summary: Confirm email verification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+      responses:
+        "204":
+          description: Email verified
+
+  /api/v1/auth/verify-email/request:
+    post:
+      tags: [Auth]
+      summary: Request a new verification email
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Sent if applicable
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
+  /api/v1/auth/me:
+    get:
+      tags: [Auth]
+      summary: Current user profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+
+  /api/v1/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout (revoke refresh token)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        "204":
+          description: Logged out
+
+  /api/v1/auth/webhooks/kashier:
+    post:
+      tags: [Auth]
+      summary: Kashier payment webhook
+      description: Signature-verified webhook; not for client use.
+      responses:
+        "200":
+          description: Accepted
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+
+  /api/v1/specialties:
+    get:
+      tags: [Doctors]
+      summary: List medical specialties
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/doctors:
+    get:
+      tags: [Doctors]
+      summary: Search doctors
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: specialty_id
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/doctors/{id}:
+    get:
+      tags: [Doctors]
+      summary: Get doctor by id
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: OK
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/doctors/{doctorId}/posts:
+    get:
+      tags: [Posts]
+      summary: List posts by doctor
+      parameters:
+        - name: doctorId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/doctors/{doctorId}/free-messages:
+    post:
+      tags: [FreeMessages]
+      summary: Submit a free message to a doctor (public)
+      parameters:
+        - name: doctorId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sender_name, sender_email, body]
+              properties:
+                sender_name:
+                  type: string
+                sender_email:
+                  type: string
+                  format: email
+                body:
+                  type: string
+      responses:
+        "201":
+          description: Created
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
+  /api/v1/doctors/me/free-messages:
+    get:
+      tags: [FreeMessages]
+      summary: Doctor inbox of free messages
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/free-messages/{id}/reply:
+    post:
+      tags: [FreeMessages]
+      summary: Reply to a free message
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body:
+                  type: string
+      responses:
+        "200":
+          description: OK
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/profile/doctor:
+    patch:
+      tags: [Profile]
+      summary: Update doctor profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/profile/doctor/submit-for-verification:
+    post:
+      tags: [Profile]
+      summary: Submit doctor profile for admin verification
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Submitted
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+
+  /api/v1/profile/image:
+    patch:
+      tags: [Profile]
+      summary: Set profile image from an uploaded file
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [file_id]
+              properties:
+                file_id:
+                  type: integer
+                  format: int64
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/doctor-availability/{doctorProfileId}/days:
+    get:
+      tags: [Schedule]
+      summary: List availability days for a doctor
+      parameters:
+        - name: doctorProfileId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/doctor-availability/{doctorProfileId}/hours:
+    get:
+      tags: [Schedule]
+      summary: List bookable slots for a day
+      parameters:
+        - name: doctorProfileId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/doctor-schedule:
+    get:
+      tags: [Schedule]
+      summary: Get own weekly schedule
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    put:
+      tags: [Schedule]
+      summary: Replace own weekly schedule
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/doctor-schedule/exceptions:
+    post:
+      tags: [Schedule]
+      summary: Add a schedule exception
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "201":
+          description: Created
+
+  /api/v1/doctor-schedule/exceptions/{id}:
+    delete:
+      tags: [Schedule]
+      summary: Delete a schedule exception
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "204":
+          description: Deleted
+
+  /api/v1/doctor-posts:
+    get:
+      tags: [Posts]
+      summary: Public posts feed
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [Posts]
+      summary: Create a draft post
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "201":
+          description: Created
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/doctor-posts/{id}:
+    get:
+      tags: [Posts]
+      summary: Get a post
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: OK
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Posts]
+      summary: Update a draft post
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [Posts]
+      summary: Soft-delete a post
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "204":
+          description: Deleted
+
+  /api/v1/doctor-posts/{id}/publish:
+    post:
+      tags: [Posts]
+      summary: Publish a post
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Published
+
+  /api/v1/doctor-posts/{id}/unpublish:
+    post:
+      tags: [Posts]
+      summary: Unpublish a post
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Unpublished
+
+  /api/v1/consultations:
+    get:
+      tags: [Consultations]
+      summary: List my consultations
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [Consultations]
+      summary: Book a consultation (patient)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookConsultationRequest"
+      responses:
+        "201":
+          description: Created with pending payment
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/consultations/{id}:
+    get:
+      tags: [Consultations]
+      summary: Get consultation by id
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: OK
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/consultations/{id}/check-in:
+    post:
+      tags: [Queue]
+      summary: Patient check-in to the clinic queue
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "201":
+          description: Checked in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckInResponse"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+
+  /api/v1/consultations/{id}/queue:
+    get:
+      tags: [Queue]
+      summary: Patient view of own queue position
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: OK
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/consultations/{id}/cancel:
+    post:
+      tags: [Consultations]
+      summary: Cancel a consultation
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Cancelled
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+
+  /api/v1/consultations/{id}/medical-record:
+    get:
+      tags: [Clinical]
+      summary: Get medical record
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: OK
+    put:
+      tags: [Clinical]
+      summary: Upsert medical record (doctor)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/consultations/{id}/medical-record/attachments:
+    post:
+      tags: [Clinical]
+      summary: Add medical-record attachment (doctor)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [file_id]
+              properties:
+                file_id:
+                  type: integer
+                  format: int64
+                caption:
+                  type: string
+      responses:
+        "201":
+          description: Created
+
+  /api/v1/consultations/{id}/medical-record/attachments/{attachmentId}:
+    delete:
+      tags: [Clinical]
+      summary: Delete medical-record attachment (doctor)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - name: attachmentId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "204":
+          description: Deleted
+
+  /api/v1/consultations/{id}/prescription:
+    get:
+      tags: [Clinical]
+      summary: Get prescription
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: OK
+    put:
+      tags: [Clinical]
+      summary: Upsert prescription (doctor)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/consultations/{id}/messages:
+    get:
+      tags: [Communication]
+      summary: List consultation messages
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [Communication]
+      summary: Send a consultation message
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body:
+                  type: string
+      responses:
+        "201":
+          description: Created
+
+  /api/v1/notifications:
+    get:
+      tags: [Communication]
+      summary: List notifications
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/notifications/{id}/read:
+    post:
+      tags: [Communication]
+      summary: Mark one notification read
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "204":
+          description: Marked
+
+  /api/v1/notifications/read-all:
+    post:
+      tags: [Communication]
+      summary: Mark all notifications read
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Marked
+
+  /api/v1/notifications/unread-count:
+    get:
+      tags: [Communication]
+      summary: Unread notification count
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+
+  /api/v1/files:
+    post:
+      tags: [Files]
+      summary: Upload a file (multipart)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, scope]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                scope:
+                  type: string
+                  enum: [ProfileImage, PostAttachment, MedicalAttachment]
+      responses:
+        "201":
+          description: Created
+
+  /api/v1/files/{id}:
+    get:
+      tags: [Files]
+      summary: Get file with presigned URL
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: OK
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Files]
+      summary: Soft-delete a file
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "204":
+          description: Deleted
+
+  /api/v1/files/{id}/metadata:
+    get:
+      tags: [Files]
+      summary: Get file metadata
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/clinic-sessions/{id}/queue:
+    get:
+      tags: [Queue]
+      summary: Doctor/admin session queue view
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: OK
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/clinic-sessions/{id}/close:
+    post:
+      tags: [Queue]
+      summary: Close a queue window
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "204":
+          description: Closed
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/queue/{entryId}/call:
+    post:
+      tags: [Queue]
+      summary: Call next / call a queue entry
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/EntryID"
+      responses:
+        "200":
+          description: Called
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/queue/{entryId}/start:
+    post:
+      tags: [Queue]
+      summary: Start consultation for a called entry
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/EntryID"
+      responses:
+        "200":
+          description: In progress
+
+  /api/v1/queue/{entryId}/complete:
+    post:
+      tags: [Queue]
+      summary: Complete an in-progress entry
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/EntryID"
+      responses:
+        "200":
+          description: Completed
+
+  /api/v1/queue/{entryId}/skip:
+    post:
+      tags: [Queue]
+      summary: Skip a called/waiting entry
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/EntryID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Skipped
+
+  /api/v1/queue/{entryId}/no-show:
+    post:
+      tags: [Queue]
+      summary: Mark entry as no-show
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/EntryID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: No-show
+
+  /api/v1/admin/doctors/{userId}/propose-verification:
+    post:
+      tags: [Admin]
+      summary: Propose doctor verification vote
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "201":
+          description: Vote opened
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/admin/doctors/{userId}/propose-unverification:
+    post:
+      tags: [Admin]
+      summary: Propose doctor unverification vote
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "201":
+          description: Vote opened
+
+  /api/v1/admin/votes:
+    get:
+      tags: [Admin]
+      summary: List admin votes
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/admin/votes/{voteId}/cast:
+    post:
+      tags: [Admin]
+      summary: Cast a vote
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: voteId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [choice]
+              properties:
+                choice:
+                  type: string
+                  enum: [For, Against]
+      responses:
+        "200":
+          description: Cast
+
+  /api/v1/admin/doctors/pending:
+    get:
+      tags: [Admin]
+      summary: List doctors pending verification
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    EntryID:
+      name: entryId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties:
+            type: string
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    RegisterRequest:
+      type: object
+      required: [email, password, role]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        role:
+          type: string
+          enum: [Patient, PendingDoctor]
+        full_name:
+          type: string
+    AuthTokens:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_in:
+          type: integer
+        token_type:
+          type: string
+          example: Bearer
+    BookConsultationRequest:
+      type: object
+      required: [doctor_profile_id, scheduled_at]
+      properties:
+        doctor_profile_id:
+          type: integer
+          format: int64
+        scheduled_at:
+          type: string
+          format: date-time
+        is_urgent:
+          type: boolean
+          default: false
+        notes:
+          type: string
+        payment_channel:
+          type: string
+        return_url:
+          type: string
+          format: uri
+        cancel_url:
+          type: string
+          format: uri
+    CheckInResponse:
+      type: object
+      properties:
+        queue_entry_id:
+          type: integer
+          format: int64
+        queue_number:
+          type: integer
+        position:
+          type: integer
+        estimated_wait_minutes:
+          type: integer
+        queue_status:
+          type: string
+        clinic_session_id:
+          type: integer
+          format: int64
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthenticated:
+      description: Unauthenticated
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Conflict:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unprocessable:
+      description: Unprocessable entity
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    RateLimited:
+      description: Rate limited
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

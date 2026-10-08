@@ -3,29 +3,24 @@ package httpx
 import (
 	"context"
 	"strings"
+
+	"tibi/internal/platform/trace"
 )
 
-// traceKey is a unique key under which the trace ID is stored on the request
-// context. Like auth.ctxKey, it exists only to be a concrete type for
-// context.WithValue/Value.
-type traceKey struct{}
-
-// WithID stores id on ctx so downstream middleware and handlers can
-// retrieve it with ID. If id is empty, ctx is returned unchanged.
+// WithID stores id on ctx via the shared platform/trace package so that both
+// HTTP middleware and the DB tracer read the same value.
 func WithID(ctx context.Context, id string) context.Context {
-	if id == "" {
-		return ctx
-	}
-	return context.WithValue(ctx, traceKey{}, id)
+	return trace.WithID(ctx, id)
 }
 
 // ID returns the trace ID stored on ctx, or "" when none was set.
 func ID(ctx context.Context) string {
-	id, ok := ctx.Value(traceKey{}).(string)
-	if !ok {
-		return ""
-	}
-	return id
+	return trace.ID(ctx)
+}
+
+// NewTraceID returns a fresh W3C-shaped trace ID.
+func NewTraceID() string {
+	return trace.NewID()
 }
 
 // FromHeader extracts the trace ID from a W3C "traceparent" header value of

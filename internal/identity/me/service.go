@@ -51,6 +51,7 @@ type Response struct {
 	Email           string          `json:"email"`
 	Role            string          `json:"role"`
 	ProfileImageURL *string         `json:"profile_image_url"`
+	EmailVerified   bool            `json:"email_verified"`
 	CreatedAt       string          `json:"created_at"`
 	PatientProfile  *PatientProfile `json:"patient_profile"`
 	DoctorProfile   *DoctorProfile  `json:"doctor_profile"`
@@ -84,6 +85,7 @@ func (s *Service) Execute(ctx context.Context, userID int64) (*Response, error) 
 		Email:           row.Email,
 		Role:            string(row.Role),
 		ProfileImageURL: imageURL, // ✅ Use resolved URL
+		EmailVerified:   row.EmailVerifiedAt.Valid,
 		CreatedAt:       row.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
 	}
 

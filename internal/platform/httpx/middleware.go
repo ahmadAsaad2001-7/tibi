@@ -3,10 +3,9 @@ package httpx
 import (
 	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 
-	"github.com/google/uuid"
+	"tibi/internal/platform/trace"
 )
 
 // Trace assigns or reuses a trace ID, sets the X-Trace-Id header,
@@ -15,7 +14,7 @@ func Trace(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := FromHeader(r.Header.Get("traceparent"))
 		if id == "" {
-			id = strings.ReplaceAll(uuid.NewString(), "-", "")
+			id = trace.NewID()
 		}
 		w.Header().Set("X-Trace-Id", id)
 		next.ServeHTTP(w, r.WithContext(WithID(r.Context(), id)))

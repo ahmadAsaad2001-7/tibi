@@ -14,8 +14,10 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"tibi/internal/admin/castvote"
+	"tibi/internal/admin/createsuspension"
 	"tibi/internal/admin/expirevotes"
 	"tibi/internal/admin/listpendingdoctors"
 	"tibi/internal/admin/listvotes"
@@ -67,6 +69,9 @@ import (
 
 	"tibi/internal/doctorposts/createpost"
 	"tibi/internal/doctorposts/deletepost"
+	"tibi/internal/doctorposts/freemessages/listinbox"
+	"tibi/internal/doctorposts/freemessages/replymessage"
+	"tibi/internal/doctorposts/freemessages/submitmessage"
 	"tibi/internal/doctorposts/getpost"
 	"tibi/internal/doctorposts/listbydoctor"
 	"tibi/internal/doctorposts/listfeed"
@@ -82,12 +87,16 @@ import (
 	"tibi/internal/files/upload"
 
 	identityapi "tibi/internal/identity/api"
+	"tibi/internal/identity/confirmemailverification"
+	"tibi/internal/identity/confirmpasswordreset"
 	identitycontracts "tibi/internal/identity/contracts"
 	"tibi/internal/identity/login"
 	"tibi/internal/identity/logout"
 	"tibi/internal/identity/me"
 	"tibi/internal/identity/refresh"
 	"tibi/internal/identity/register"
+	"tibi/internal/identity/requestemailverification"
+	"tibi/internal/identity/requestpasswordreset"
 	identityscope "tibi/internal/identity/scope" // ✅ ADDED (verify exact path)
 	"tibi/internal/identity/setprofileimage"     // ✅ ADDED
 
@@ -101,7 +110,11 @@ import (
 	"tibi/internal/platform/auth"
 	"tibi/internal/platform/config"
 	"tibi/internal/platform/database"
+	"tibi/internal/platform/docs"
+	"tibi/internal/platform/email"
 	"tibi/internal/platform/httpx"
+	"tibi/internal/platform/metrics"
+	"tibi/internal/platform/ratelimit"
 	"tibi/internal/platform/ws"
 	"tibi/internal/storage"
 
@@ -155,7 +168,7 @@ func run() error {
 		}
 	}
 
-	db, err := database.Connect(ctx, cfg.DatabaseURL)
+	db, err := database.Connect(ctx, cfg.DatabaseURL, slog.Default())
 	if err != nil {
 		return err
 	}
@@ -166,6 +179,20 @@ func run() error {
 	issuer := auth.NewTokenIssuer(cfg.JWTSecret, cfg.JWTAccessTTL)
 	refreshStore := auth.NewRefreshStore(db, cfg.JWTRefreshTTL)
 	kashierClient := kashier.NewClient(cfg.KashierAPIKey, cfg.KashierAPIURL)
+
+	// Rate limiter factory. Reads the driver once so the string is not
+	// re-evaluated for every limiter. Postgres limiters register a Stop hook
+	// so their cleanup goroutines are terminated on shutdown.
+	rateLimitDriver := cfg.RateLimitDriver
+	var limiterStops []func()
+	newLimiter := func(limCfg ratelimit.Config) ratelimit.Limiter {
+		if rateLimitDriver == "postgres" {
+			p := ratelimit.NewPostgres(db.Pool, limCfg, slog.Default())
+			limiterStops = append(limiterStops, p.Stop)
+			return p
+		}
+		return ratelimit.NewMemory(limCfg)
+	}
 
 	consultationChecker := consultationswschecker.NewService(db)
 	queueChecker := queuewschecker.NewService(db)
@@ -227,6 +254,34 @@ func run() error {
 	markAllReadSvc := markallread.NewService(db)
 	unreadCountSvc := unreadcount.NewService(db)
 
+	// Platform: email sender + rate limiters.
+	var mailer email.Sender
+	switch cfg.EmailDriver {
+	case "logger":
+		mailer = email.NewLogger(slog.Default())
+	case "smtp":
+		mailer = email.NewSMTP(email.SMTPConfig{
+			Host: cfg.SMTPHost, Port: cfg.SMTPPort,
+			Username: cfg.SMTPUsername, Password: cfg.SMTPPassword,
+			From: cfg.SMTPFrom,
+		})
+	default:
+		return errors.New("unknown email driver")
+	}
+
+	ipLimiter := newLimiter(ratelimit.Config{Limit: 3, Window: time.Hour})
+	emailLimiter := newLimiter(ratelimit.Config{Limit: 2, Window: time.Hour})
+
+	// Slice 15: separate buckets for reset/verify flows (SD32).
+	resetIPLimiter := newLimiter(ratelimit.Config{Limit: 3, Window: time.Hour})
+	resetEmLimiter := newLimiter(ratelimit.Config{Limit: 3, Window: time.Hour})
+	verifyLimiter := newLimiter(ratelimit.Config{Limit: 3, Window: time.Hour})
+
+	// Free consultation messages (doctorposts).
+	submitMsgSvc := submitmessage.NewService(db, ipLimiter, emailLimiter)
+	listInboxSvc := listinbox.NewService(db)
+	replyMsgSvc := replymessage.NewService(db, mailer)
+
 	// Consultations
 	bookSvc := book.NewService(db, doctorsAPI, paymentsAPI, notificationsAPI)
 	listMySvc := listmy.NewService(db)
@@ -278,7 +333,8 @@ func run() error {
 
 	// Admin module services
 	proposeVoteSvc := proposevote.NewService(db)
-	castVoteSvc := castvote.NewService(db, doctorsAPI, identityAPI)
+	createSuspensionSvc := createsuspension.NewService(db)
+	castVoteSvc := castvote.NewService(db, doctorsAPI, identityAPI, createSuspensionSvc)
 	listVotesSvc := listvotes.NewService(db)
 	listPendingSvc := listpendingdoctors.NewService(db)
 	expireWorker := expirevotes.NewService(db)
@@ -297,7 +353,6 @@ func run() error {
 	go expireWorker.Run(ctx)
 
 	// Identity services
-	registerSvc := register.NewService(db, hasher, issuer, refreshStore, createProfileSvc, doctorsAPI)
 	loginSvc := login.NewService(db, hasher, issuer, refreshStore)
 	refreshSvc := refresh.NewService(db, issuer, refreshStore)
 	logoutSvc := logout.NewService(refreshStore)
@@ -308,10 +363,29 @@ func run() error {
 	// ✅ ADDED: Profile Image service
 	setProfileImageSvc := setprofileimage.NewService(db, filesAPI)
 
+	// Slice 15: password reset + email verification.
+	requestResetSvc := requestpasswordreset.NewService(db, mailer, resetIPLimiter, resetEmLimiter, cfg.AppBaseURL)
+	confirmResetSvc := confirmpasswordreset.NewService(db, hasher)
+
+	requestVerifySvc := requestemailverification.NewService(db, mailer, verifyLimiter, cfg.AppBaseURL)
+	confirmVerifySvc := confirmemailverification.NewService(db)
+
+	// Register now takes an EmailVerifier; requestemailverification satisfies it.
+	registerSvc := register.NewService(db, hasher, issuer, refreshStore, createProfileSvc, doctorsAPI, requestVerifySvc)
+
 	r := chi.NewRouter()
 	r.Use(httpx.Trace)
 	r.Use(httpx.Recover)
+	r.Use(metrics.HTTPMiddleware)
 	r.Use(httpx.RequestLog)
+
+	// Liveness/readiness (SD41) and metrics (SD40) — anonymous, standard.
+	r.Get("/healthz", httpx.Healthz)
+	r.Get("/readyz", httpx.Readyz(db))
+	r.Handle("/metrics", promhttp.Handler())
+
+	// Scalar API reference (OpenAPI embedded in the binary).
+	docs.Mount(r)
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		httpx.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -324,9 +398,18 @@ func run() error {
 			r.Post("/login", login.NewHandler(loginSvc).ServeHTTP)
 			r.Post("/refresh", refresh.NewHandler(refreshSvc).ServeHTTP)
 
+			// Slice 15: password reset + email verification confirm are
+			// anonymous (the token in the body is the credential).
+			r.Post("/forgot-password", requestpasswordreset.NewHandler(requestResetSvc).ServeHTTP)
+			r.Post("/reset-password", confirmpasswordreset.NewHandler(confirmResetSvc).ServeHTTP)
+			r.Post("/verify-email/confirm", confirmemailverification.NewHandler(confirmVerifySvc).ServeHTTP)
+
 			r.Group(func(r chi.Router) {
 				r.Use(auth.RequireAuth(issuer))
 				r.Get("/me", me.NewHandler(meSvc).ServeHTTP)
+				// verify-email/request is authenticated: the user asks for a
+				// new verification email for their own account (slice 15).
+				r.Post("/verify-email/request", requestemailverification.NewHandler(requestVerifySvc).ServeHTTP)
 				r.Post("/logout", func(w http.ResponseWriter, r *http.Request) {
 					var cmd logout.Command
 					if err := json.NewDecoder(r.Body).Decode(&cmd); err != nil {
@@ -438,6 +521,17 @@ func run() error {
 			r.Get("/notifications/unread-count", unreadcount.NewHandler(unreadCountSvc).ServeHTTP)
 		})
 
+		// Free consultation messages (doctorposts). Public contact form.
+		r.Post("/doctors/{doctorId}/free-messages", submitmessage.NewHandler(submitMsgSvc).ServeHTTP)
+
+		// Doctor inbox + reply.
+		r.Group(func(r chi.Router) {
+			r.Use(auth.RequireAuth(issuer))
+			r.Use(auth.RequireRole(identitycontracts.RoleDoctor))
+			r.Get("/doctors/me/free-messages", listinbox.NewHandler(listInboxSvc).ServeHTTP)
+			r.Post("/free-messages/{id}/reply", replymessage.NewHandler(replyMsgSvc).ServeHTTP)
+		})
+
 		// Files routes
 		r.Group(func(r chi.Router) {
 			r.Use(auth.RequireAuth(issuer))
@@ -506,6 +600,12 @@ func run() error {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
+
+	// Stop Postgres limiter cleanup goroutines before draining connections.
+	for _, stop := range limiterStops {
+		stop()
+	}
+
 	return srv.Shutdown(shutdownCtx)
 }
 
