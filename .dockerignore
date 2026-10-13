@@ -1,0 +1,11 @@
+.git
+.github
+.idea
+.kilo
+docs
+data
+*.md
+.env
+.env.*
+cmd/api/main.go.bak
+**/testdata

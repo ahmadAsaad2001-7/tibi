@@ -3,17 +3,17 @@ package listspecialties
 import (
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"tibi/internal/doctors/listspecialties/db"
 )
 
 func TestBuildTreeNestsChildren(t *testing.T) {
-	parent := int64(1)
-	child := int64(2)
 	rows := []db.ListSpecialtiesRow{
 		{ID: 1, Name: "Cardiology"},
-		{ID: 2, Name: "Interventional Cardiology", ParentSpecialtyID: &parent},
-		{ID: 3, Name: "Pediatric Cardiology", ParentSpecialtyID: &child},
-		{ID: 9, Name: "Orphan", ParentSpecialtyID: int64Ptr(99)},
+		{ID: 2, Name: "Interventional Cardiology", ParentSpecialtyID: pgtype.Int8{Int64: 1, Valid: true}},
+		{ID: 3, Name: "Pediatric Cardiology", ParentSpecialtyID: pgtype.Int8{Int64: 2, Valid: true}},
+		{ID: 9, Name: "Orphan", ParentSpecialtyID: pgtype.Int8{Int64: 99, Valid: true}},
 	}
 
 	roots := buildTree(rows)
@@ -35,5 +35,3 @@ func TestBuildTreeEmpty(t *testing.T) {
 		t.Fatalf("roots = %#v, want empty slice", roots)
 	}
 }
-
-func int64Ptr(v int64) *int64 { return &v }

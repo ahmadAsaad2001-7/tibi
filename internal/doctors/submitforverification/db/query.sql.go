@@ -87,14 +87,14 @@ UPDATE doctors_profiles
 SET verification_status = $1,
     submitted_at        = $2,
     updated_at          = now()
-WHERE id = $3 AND xmin::text = $4
+WHERE id = $3 AND xmin::text = $4::text
 `
 
 type UpdateVerificationStatusParams struct {
 	VerificationStatus VerificationStatus
 	SubmittedAt        pgtype.Timestamptz
 	ID                 int64
-	Xmin               pgtype.Uint32
+	Xmin               string
 }
 
 func (q *Queries) UpdateVerificationStatus(ctx context.Context, arg UpdateVerificationStatusParams) (int64, error) {

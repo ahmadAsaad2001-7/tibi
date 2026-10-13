@@ -12,7 +12,7 @@ UPDATE doctors_profiles
 SET verification_status = @verification_status,
     submitted_at        = @submitted_at,
     updated_at          = now()
-WHERE id = @id AND xmin::text = @xmin;
+WHERE id = @id AND xmin::text = sqlc.arg('xmin')::text;
 
 -- name: ListSpecialtyIDs :many
 SELECT specialty_id

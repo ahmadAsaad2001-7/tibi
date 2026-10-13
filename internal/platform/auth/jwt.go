@@ -39,6 +39,12 @@ func (t *TokenIssuer) IssueAccess(userID int64, role string) (string, error) {
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(t.secret)
 }
 
+// ToAuthUser converts parsed JWT claims into the request auth principal.
+//nolint:gosimple // explicit field mapping is clearer than a type conversion here.
+func (c Claims) ToAuthUser() AuthUser {
+	return AuthUser{UserID: c.UserID, Role: c.Role}
+}
+
 func (t *TokenIssuer) Parse(token string) (Claims, error) {
 	var c Claims
 	parsed, err := jwt.Parse(token, func(tk *jwt.Token) (any, error) {

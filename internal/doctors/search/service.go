@@ -288,10 +288,4 @@ func (s *Service) Execute(ctx context.Context, p Params) (*Response, error) {
 	return resp, nil
 }
 
-// ✅ Helper functions preserved as requested
-func textToPtr(t pgtype.Text) *string {
-	if !t.Valid {
-		return nil
-	}
-	return &t.String
-}
+// searchRow conversion helpers live inline where used.

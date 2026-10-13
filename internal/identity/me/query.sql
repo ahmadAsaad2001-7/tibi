@@ -17,13 +17,17 @@ SELECT
     -- ❌ REMOVED DUPLICATE: u.profile_image_file_id As profile_image_file_id,
     d.full_name                AS doctor_full_name,
     d.bio                      AS doctor_bio,
-    d.consultation_fee::text   AS doctor_consultation_fee,
+    -- CASE (not COALESCE): these columns are NOT NULL in the schema, but the
+    -- LEFT JOIN yields NULL for non-doctor rows; sqlc types them as plain
+    -- string, so the NULL must be handled here or pgx fails scanning patient
+    -- rows (/me 500). Only consulted when doctor_id IS NOT NULL.
+    CASE WHEN d.id IS NULL THEN ''::text ELSE d.consultation_fee::text END AS doctor_consultation_fee,
     d.currency                 AS doctor_currency,
     d.clinic_name              AS doctor_clinic_name,
     d.clinic_address           AS doctor_clinic_address,
     d.medical_license_number   AS doctor_medical_license_number,
     d.verification_status      AS doctor_verification_status,
-    d.average_rating::text     AS doctor_average_rating,
+    CASE WHEN d.id IS NULL THEN '0'::text ELSE d.average_rating::text END AS doctor_average_rating,
     d.rating_count             AS doctor_rating_count
 FROM identity_users u
          LEFT JOIN patients_profiles p ON p.user_id = u.id AND p.deleted_at IS NULL

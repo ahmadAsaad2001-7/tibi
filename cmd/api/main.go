@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -19,8 +19,12 @@ import (
 	"tibi/internal/admin/castvote"
 	"tibi/internal/admin/createsuspension"
 	"tibi/internal/admin/expirevotes"
+	"tibi/internal/admin/liftsuspension"
 	"tibi/internal/admin/listpendingdoctors"
+	"tibi/internal/admin/listsuspensions"
+	"tibi/internal/admin/listusers"
 	"tibi/internal/admin/listvotes"
+	"tibi/internal/admin/proposesuspension"
 	"tibi/internal/admin/proposevote"
 
 	"tibi/internal/clinical/addattachment"
@@ -41,6 +45,16 @@ import (
 	"tibi/internal/consultations/markcompleted"
 	"tibi/internal/consultations/markconfirmed"
 	consultationswschecker "tibi/internal/consultations/wschecker"
+
+	careplancancelprotocol "tibi/internal/clinical/careplan/cancelprotocol"
+	careplancreateprotocol "tibi/internal/clinical/careplan/createprotocol"
+	careplanlistdoctorpatients "tibi/internal/clinical/careplan/listdoctorpatients"
+	careplanpatientcomplete "tibi/internal/clinical/careplan/patientcomplete"
+	careplanpatientdoctorprotocols "tibi/internal/clinical/careplan/patientdoctorprotocols"
+	careplanpatientdoctorsummary "tibi/internal/clinical/careplan/patientdoctorsummary"
+	careplanpatientget "tibi/internal/clinical/careplan/patientget"
+	careplanpatientlist "tibi/internal/clinical/careplan/patientlist"
+	careplanupdateprotocol "tibi/internal/clinical/careplan/updateprotocol"
 
 	communicationapi "tibi/internal/communication/api"
 	"tibi/internal/communication/createnotification"
@@ -115,6 +129,7 @@ import (
 	"tibi/internal/platform/httpx"
 	"tibi/internal/platform/metrics"
 	"tibi/internal/platform/ratelimit"
+	"tibi/internal/platform/seed"
 	"tibi/internal/platform/ws"
 	"tibi/internal/storage"
 
@@ -132,14 +147,21 @@ import (
 	queuewschecker "tibi/internal/queue/wschecker"
 )
 
+// version is stamped at build time via
+// -ldflags "-X main.version=$(date -u +%Y-%m-%dT%H:%M:%SZ)".
+var version = "dev"
+
 func main() {
-	if err := run(); err != nil {
+	seedOnly := flag.Bool("seed", false, "seed bootstrap data and exit")
+	flag.Parse()
+
+	if err := run(*seedOnly); err != nil {
 		slog.Error("fatal", "err", err)
 		os.Exit(1)
 	}
 }
 
-func run() error {
+func run(seedOnly bool) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -147,12 +169,8 @@ func run() error {
 	if err != nil {
 		return err
 	}
-
-	if cfg.IsProduction() && cfg.JWTSecret == "replace-me-with-32-bytes-of-random" {
-		return errors.New("JWT_SECRET not set in production")
-	}
-	if cfg.IsProduction() && strings.HasPrefix(cfg.KashierAPIKey, "sk_test_") {
-		return errors.New("Kashier test key set in production")
+	if err := cfg.Validate(); err != nil {
+		return err
 	}
 
 	logLevel := slog.LevelInfo
@@ -160,6 +178,7 @@ func run() error {
 		logLevel = slog.LevelDebug
 	}
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel})))
+	slog.Info("starting", "version", version, "env", cfg.Env)
 	if cfg.IsProduction() {
 		for _, o := range cfg.WSOriginPatterns {
 			if o == "*" {
@@ -173,6 +192,13 @@ func run() error {
 		return err
 	}
 	defer db.Close()
+
+	// Production bootstrap (slice 18f): --seed applies the specialty
+	// catalog idempotently and creates an admin user when ADMIN_EMAIL and
+	// ADMIN_PASSWORD are set. It never starts the HTTP server.
+	if seedOnly {
+		return seed.Run(ctx, db, seed.Options{Production: cfg.IsProduction()})
+	}
 
 	// Platform
 	hasher := auth.NewPasswordHasher()
@@ -232,6 +258,13 @@ func run() error {
 
 	// Core APIs
 	identityAPI := identityapi.New(db)
+
+	// Care plan (task protocol)
+	carePlanCompleteSvc := careplanpatientcomplete.NewService(db)
+	carePlanListSvc := careplanpatientlist.NewService(db)
+	carePlanGetSvc := careplanpatientget.NewService(db)
+	carePlanDoctorPatientProtocolsSvc := careplanpatientdoctorprotocols.NewService(db)
+	carePlanDoctorPatientSummarySvc := careplanpatientdoctorsummary.NewService(db)
 
 	// Doctors
 	createSessionSvc := createsession.NewService(db)
@@ -301,6 +334,12 @@ func run() error {
 	upsertPrescSvc := upsertprescription.NewService(db, consultationsAPI)
 	getPrescSvc := getprescription.NewService(db)
 
+	// Care plan (task protocol) — doctor assignment & patient list
+	carePlanCreateProtocolSvc := careplancreateprotocol.NewService(db, consultationsAPI)
+	carePlanUpdateProtocolSvc := careplanupdateprotocol.NewService(db)
+	carePlanCancelProtocolSvc := careplancancelprotocol.NewService(db)
+	carePlanDoctorPatientsSvc := careplanlistdoctorpatients.NewService(db)
+
 	// Queue & Other Services
 	etaSvc := eta.NewService(db)
 	sessionQueueSvc := getsessionqueue.NewService(db)
@@ -337,6 +376,10 @@ func run() error {
 	castVoteSvc := castvote.NewService(db, doctorsAPI, identityAPI, createSuspensionSvc)
 	listVotesSvc := listvotes.NewService(db)
 	listPendingSvc := listpendingdoctors.NewService(db)
+	listUsersSvc := listusers.NewService(db)
+	listSusSvc := listsuspensions.NewService(db)
+	liftSusSvc := liftsuspension.NewService(db)
+	proposeSusSvc := proposesuspension.NewService(db)
 	expireWorker := expirevotes.NewService(db)
 
 	// Doctor Posts services
@@ -524,6 +567,30 @@ func run() error {
 		// Free consultation messages (doctorposts). Public contact form.
 		r.Post("/doctors/{doctorId}/free-messages", submitmessage.NewHandler(submitMsgSvc).ServeHTTP)
 
+		// Care plan (task protocol) routes
+		r.Route("/care-plan", func(r chi.Router) {
+			r.Use(auth.RequireAuth(issuer))
+
+			// Patient routes
+			r.Group(func(r chi.Router) {
+				r.Use(auth.RequireRole(identitycontracts.RolePatient))
+				r.Get("/protocols/my", careplanpatientlist.NewHandler(carePlanListSvc).ServeHTTP)
+				r.Get("/protocols/{id}", careplanpatientget.NewHandler(carePlanGetSvc).ServeHTTP)
+				r.Post("/protocols/{id}/complete", careplanpatientcomplete.NewHandler(carePlanCompleteSvc).ServeHTTP)
+			})
+
+			// Doctor routes
+			r.Group(func(r chi.Router) {
+				r.Use(auth.RequireRole(identitycontracts.RoleDoctor, identitycontracts.RoleAdmin))
+				r.Get("/patients", careplanlistdoctorpatients.NewHandler(carePlanDoctorPatientsSvc).ServeHTTP)
+				r.Get("/patients/{patientId}/protocols", careplanpatientdoctorprotocols.NewHandler(carePlanDoctorPatientProtocolsSvc).ServeHTTP)
+				r.Get("/patients/{patientId}/summary", careplanpatientdoctorsummary.NewHandler(carePlanDoctorPatientSummarySvc).ServeHTTP)
+				r.Post("/protocols", careplancreateprotocol.NewHandler(carePlanCreateProtocolSvc).ServeHTTP)
+				r.Put("/protocols/{id}", careplanupdateprotocol.NewHandler(carePlanUpdateProtocolSvc).ServeHTTP)
+				r.Post("/protocols/{id}/cancel", careplancancelprotocol.NewHandler(carePlanCancelProtocolSvc).ServeHTTP)
+			})
+		})
+
 		// Doctor inbox + reply.
 		r.Group(func(r chi.Router) {
 			r.Use(auth.RequireAuth(issuer))
@@ -571,6 +638,11 @@ func run() error {
 			r.Get("/votes", listvotes.NewHandler(listVotesSvc).ServeHTTP)
 			r.Post("/votes/{voteId}/cast", castvote.NewHandler(castVoteSvc).ServeHTTP)
 			r.Get("/doctors/pending", listpendingdoctors.NewHandler(listPendingSvc).ServeHTTP)
+
+			r.Get("/users", listusers.NewHandler(listUsersSvc).ServeHTTP)
+			r.Get("/suspensions", listsuspensions.NewHandler(listSusSvc).ServeHTTP)
+			r.Post("/suspensions/{id}/lift", liftsuspension.NewHandler(liftSusSvc).ServeHTTP)
+			r.Post("/users/{userId}/propose-suspension", proposesuspension.NewHandler(proposeSusSvc).ServeHTTP)
 		})
 	})
 

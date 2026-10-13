@@ -21,7 +21,7 @@ func RequireAuth(issuer *TokenIssuer) func(http.Handler) http.Handler {
 				httpx.Error(w, r, httpx.Unauthenticated("invalid or expired token"))
 				return
 			}
-			ctx := WithUser(r.Context(), AuthUser{UserID: claims.UserID, Role: claims.Role})
+			ctx := WithUser(r.Context(), claims.ToAuthUser())
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

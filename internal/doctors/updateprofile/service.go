@@ -3,7 +3,6 @@ package updateprofile
 import (
 	"context"
 	"errors"
-	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -102,15 +101,6 @@ func (s *Service) Execute(ctx context.Context, userID int64, cmd Command) (*Resp
 			SpecialtyIDs:         cmd.SpecialtyIDs,
 		})
 
-		// ✅ FIX 6: تحويل row.Xmin (string) إلى pgtype.Uint32
-		var xmin pgtype.Uint32
-		if row.Xmin != "" {
-			val, err := strconv.ParseUint(row.Xmin, 10, 32)
-			if err == nil {
-				xmin = pgtype.Uint32{Uint32: uint32(val), Valid: true}
-			}
-		}
-
 		// ✅ FIX 4 & 5: تحويل ConsultationFee إلى pgtype.Numeric و MedicalLicenseNumber إلى pgtype.Text
 		var fee pgtype.Numeric
 		if profile.ConsultationFee != "" {
@@ -126,7 +116,7 @@ func (s *Service) Execute(ctx context.Context, userID int64, cmd Command) (*Resp
 			ClinicName:           profile.ClinicName,
 			ClinicAddress:        profile.ClinicAddress,
 			MedicalLicenseNumber: ptrToPgText(profile.MedicalLicenseNumber), // ✅ تحويل *string إلى pgtype.Text
-			Xmin:                 xmin,                                      // ✅ استخدام المتغير المحول
+			Xmin:                 row.Xmin,                                  // xmin::text = string ( OCC )
 		})
 		if err != nil {
 			return httpx.Internal(err)

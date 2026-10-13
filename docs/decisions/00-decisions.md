@@ -98,3 +98,26 @@ Change: cfg.ConnConfig.Tracer = NewTracer(log). Every query logs at DEBUG
         The tracer also feeds metrics (SD40). Trace ID is read from a shared
         platform/trace package so httpx and database never import each other.
 Direction: tracer is always on, no opt-out. Prometheus is served on /metrics.
+
+## R31 — Migrations are a deployment step, not app startup
+
+Date: slice 18.
+Reason: running migrations inside main would race across instances and
+        couple schema changes to application deploy.
+Change: goose runs as a separate build target (Dockerfile stage `migrate`)
+        and as a CI step. The API binary never calls goose. No migration
+        has ever run from main; this makes that an explicit invariant.
+
+## R32 — Retention is a separate binary
+
+Date: slice 18.
+Reason: retention is a scheduled data mutation, not an API concern. Its
+        failure mode (nothing deleted) is invisible to API users; its
+        success is invisible to them too.
+Change: cmd/retention is a distinct binary. It reads its own config subset
+        (config.LoadRetention — no JWT or Kashier keys required), connects
+        to the same DB, and runs on its own schedule. It is disabled by
+        default (RETENTION_ENABLED=false). Two-phase lifecycle: soft-delete
+        at RETENTION_CLINICAL_YEARS after consultation completion, hard
+        delete one year later. The 7-year default (SD58) is a placeholder
+        policy pending a legal decision.

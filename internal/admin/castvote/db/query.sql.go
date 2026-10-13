@@ -115,7 +115,7 @@ SET votes_for     = $1,
     status        = $3,
     resolved_at   = $4,
     updated_at    = now()
-WHERE id = $5 AND xmin::text = $6
+WHERE id = $5 AND xmin::text = $6::text
 `
 
 type UpdateVoteTallyParams struct {
@@ -124,7 +124,7 @@ type UpdateVoteTallyParams struct {
 	Status       VoteStatus
 	ResolvedAt   pgtype.Timestamptz
 	ID           int64
-	Xmin         pgtype.Uint32
+	Xmin         string
 }
 
 func (q *Queries) UpdateVoteTally(ctx context.Context, arg UpdateVoteTallyParams) (int64, error) {

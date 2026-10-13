@@ -34,7 +34,7 @@ SET
     clinic_address = @clinic_address,
     medical_license_number = @medical_license_number,
     updated_at = now()
-WHERE id = @id AND xmin::text = @xmin;
+WHERE id = @id AND xmin::text = sqlc.arg('xmin')::text;
 
 -- name: DeleteDoctorSpecialties :exec
 DELETE FROM doctors_profile_specialties WHERE doctor_profile_id = @doctor_profile_id;

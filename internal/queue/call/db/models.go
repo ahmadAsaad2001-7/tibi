@@ -13,6 +13,95 @@ import (
 	"tibi/internal/queue/queueentry"
 )
 
+type CarePlanCategory string
+
+const (
+	CarePlanCategoryMedication CarePlanCategory = "Medication"
+	CarePlanCategoryVitals     CarePlanCategory = "Vitals"
+	CarePlanCategoryLifestyle  CarePlanCategory = "Lifestyle"
+	CarePlanCategoryFollowUp   CarePlanCategory = "FollowUp"
+	CarePlanCategoryOther      CarePlanCategory = "Other"
+)
+
+func (e *CarePlanCategory) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CarePlanCategory(s)
+	case string:
+		*e = CarePlanCategory(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CarePlanCategory: %T", src)
+	}
+	return nil
+}
+
+type NullCarePlanCategory struct {
+	CarePlanCategory CarePlanCategory
+	Valid            bool // Valid is true if CarePlanCategory is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCarePlanCategory) Scan(value interface{}) error {
+	if value == nil {
+		ns.CarePlanCategory, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CarePlanCategory.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCarePlanCategory) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CarePlanCategory), nil
+}
+
+type CarePlanFrequency string
+
+const (
+	CarePlanFrequencyDaily         CarePlanFrequency = "Daily"
+	CarePlanFrequencyEveryOtherDay CarePlanFrequency = "EveryOtherDay"
+	CarePlanFrequencyWeekly        CarePlanFrequency = "Weekly"
+	CarePlanFrequencyOnce          CarePlanFrequency = "Once"
+)
+
+func (e *CarePlanFrequency) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CarePlanFrequency(s)
+	case string:
+		*e = CarePlanFrequency(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CarePlanFrequency: %T", src)
+	}
+	return nil
+}
+
+type NullCarePlanFrequency struct {
+	CarePlanFrequency CarePlanFrequency
+	Valid             bool // Valid is true if CarePlanFrequency is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCarePlanFrequency) Scan(value interface{}) error {
+	if value == nil {
+		ns.CarePlanFrequency, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CarePlanFrequency.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCarePlanFrequency) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CarePlanFrequency), nil
+}
+
 type ConsultationStatus string
 
 const (
@@ -579,6 +668,35 @@ type AdminVoteParticipant struct {
 	AdminUserID int64
 	Vote        VoteChoice
 	VotedAt     pgtype.Timestamptz
+}
+
+type CarePlanCompletion struct {
+	ID             int64
+	ProtocolID     int64
+	ScheduledDate  pgtype.Date
+	MarkedAt       pgtype.Timestamptz
+	MarkedByUserID int64
+	Note           *string
+	CreatedAt      pgtype.Timestamptz
+}
+
+type CarePlanProtocol struct {
+	ID               int64
+	PatientProfileID int64
+	DoctorProfileID  int64
+	ConsultationID   *int64
+	Title            string
+	Description      *string
+	Category         CarePlanCategory
+	Frequency        CarePlanFrequency
+	StartDate        pgtype.Date
+	EndDate          pgtype.Date
+	ReminderTime     pgtype.Time
+	CancelledAt      pgtype.Timestamptz
+	CreatedAt        pgtype.Timestamptz
+	UpdatedAt        pgtype.Timestamptz
+	DeletedAt        pgtype.Timestamptz
+	Xmin             pgtype.Uint32
 }
 
 type ClinicalMedicalAttachment struct {

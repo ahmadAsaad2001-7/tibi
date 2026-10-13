@@ -11,3 +11,4 @@ ALTER TABLE doctorposts_free_messages ADD COLUMN xmin xid;
 ALTER TABLE identity_password_resets ADD COLUMN xmin xid;
 ALTER TABLE identity_email_verifications ADD COLUMN xmin xid;
 ALTER TABLE admin_user_suspensions ADD COLUMN xmin xid;
+ALTER TABLE care_plan_protocols ADD COLUMN xmin xid;

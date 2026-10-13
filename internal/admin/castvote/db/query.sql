@@ -19,7 +19,7 @@ SET votes_for     = @votes_for,
     status        = @status,
     resolved_at   = @resolved_at,
     updated_at    = now()
-WHERE id = @id AND xmin::text = @xmin;
+WHERE id = @id AND xmin::text = sqlc.arg('xmin')::text;
 
 -- name: InsertVoteParticipant :exec
 INSERT INTO admin_vote_participants (admin_vote_id, admin_user_id, vote, voted_at)

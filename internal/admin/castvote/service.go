@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strconv"
 	"strings"
 	"time"
 
@@ -80,21 +79,13 @@ func (s *Service) Execute(ctx context.Context, cmd Command) (*Response, error) {
 			resolvedAtTz = pgtype.Timestamptz{Time: *vote.ResolvedAt, Valid: true}
 		}
 
-		var xmin pgtype.Uint32
-		if row.Xmin != "" {
-			val, err := strconv.ParseUint(row.Xmin, 10, 32)
-			if err == nil {
-				xmin = pgtype.Uint32{Uint32: uint32(val), Valid: true}
-			}
-		}
-
 		affected, err := q.UpdateVoteTally(ctx, db.UpdateVoteTallyParams{
 			ID:           vote.ID,
 			VotesFor:     int32(vote.VotesFor),
 			VotesAgainst: int32(vote.VotesAgainst),
 			Status:       db.VoteStatus(vote.Status),
 			ResolvedAt:   resolvedAtTz,
-			Xmin:         xmin, // ✅ مباشر كـ string كما يتوقعه الاستعلام
+			Xmin:         row.Xmin, // xmin::text = string ( OCC )
 		})
 		if err != nil {
 			return httpx.Internal(err)

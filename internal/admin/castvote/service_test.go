@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"tibi/internal/admin/adminvote"
 	"tibi/internal/admin/castvote/db"
 	"tibi/internal/platform/httpx"
@@ -42,11 +44,13 @@ func TestRoleConflictDoesNotConfusePendingWithDoctor(t *testing.T) {
 	}
 }
 
-func TestApplyActionUnsupported(t *testing.T) {
+func TestApplyActionErrors(t *testing.T) {
 	svc := &Service{}
+	// ActionBanUser is implemented: a bare vote (no reason payload, no
+	// configured suspension service) is a server-side data problem.
 	err := svc.applyAction(t.Context(), &adminvote.Vote{ActionType: adminvote.ActionBanUser})
-	if httpx.As(err).Code != "unprocessable" {
-		t.Fatalf("ban err = %v", err)
+	if code := httpx.As(err).Code; code != "internal_error" {
+		t.Fatalf("ban err = %v (code %s, want internal_error)", err, code)
 	}
 	err = svc.applyAction(t.Context(), &adminvote.Vote{ActionType: "Unknown"})
 	if httpx.As(err).Code != "internal_error" {
@@ -59,9 +63,12 @@ func TestHydrateVote(t *testing.T) {
 	voted := resolved.Add(-time.Minute)
 	vote := hydrateVote(db.GetVoteForUpdateRow{
 		ID: 7, ActionType: "VerifyDoctor", TargetUserID: 3, Status: "Resolved",
-		RequiredVotes: 2, VotesFor: 2, ExpiresAt: resolved.Add(time.Hour), ResolvedAt: &resolved, Xmin: "99",
-	}, []db.GetVoteParticipantsRow{{
-		ID: 1, AdminVoteID: 7, AdminUserID: 4, Vote: "For", VotedAt: voted,
+		RequiredVotes: 2, VotesFor: 2,
+		ExpiresAt:  pgtype.Timestamptz{Time: resolved.Add(time.Hour), Valid: true},
+		ResolvedAt: pgtype.Timestamptz{Time: resolved, Valid: true},
+		Xmin:       "99",
+	}, []db.AdminVoteParticipant{{
+		ID: 1, AdminVoteID: 7, AdminUserID: 4, Vote: db.VoteChoiceFor, VotedAt: pgtype.Timestamptz{Time: voted, Valid: true},
 	}})
 	if vote.ID != 7 || vote.Status != adminvote.StatusResolved || len(vote.Participants) != 1 {
 		t.Fatalf("vote = %+v", vote)

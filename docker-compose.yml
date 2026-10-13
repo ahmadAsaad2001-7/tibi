@@ -1,0 +1,66 @@
+# One-command local dev stack (slice 18b).
+#
+#   docker compose up -d
+#   export $(grep -v '^#' .env | xargs)
+#   goose -dir migrations postgres "$DATABASE_URL" up
+#   make run
+#
+# Mailhog web UI:      http://localhost:8025  (every email the app sends)
+# Minio console:       http://localhost:9001  (credentials minio / minio123)
+#
+# The API and retention binaries build from the same Dockerfile, so the
+# compose stack mirrors the production image layout.
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: medical
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: quay.io/minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # web UI
+
+  retention:
+    build:
+      context: .
+      target: retention
+    # The worker loads its own config subset (config.LoadRetention) so the
+    # JWT/KASHIER keys below are not needed and are omitted. It only needs
+    # DATABASE_URL plus the RETENTION_* settings.
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/medical?sslmode=disable
+      RETENTION_ENABLED: "true"
+      RETENTION_INTERVAL: 1m
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  miniodata:

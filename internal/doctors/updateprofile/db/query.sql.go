@@ -138,7 +138,7 @@ SET
     clinic_address = $5,
     medical_license_number = $6,
     updated_at = now()
-WHERE id = $7 AND xmin::text = $8
+WHERE id = $7 AND xmin::text = $8::text
 `
 
 type UpdateDoctorProfileParams struct {
@@ -149,7 +149,7 @@ type UpdateDoctorProfileParams struct {
 	ClinicAddress        string
 	MedicalLicenseNumber pgtype.Text
 	ID                   int64
-	Xmin                 pgtype.Uint32
+	Xmin                 string
 }
 
 func (q *Queries) UpdateDoctorProfile(ctx context.Context, arg UpdateDoctorProfileParams) (int64, error) {

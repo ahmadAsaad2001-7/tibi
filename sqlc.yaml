@@ -810,6 +810,50 @@ sql:
     schema:
       - "migrations/"
       - "sqlc/catalog.sql"
+    queries: "internal/clinical/careplan/createprotocol/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/clinical/careplan/createprotocol/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/clinical/careplan/updateprotocol/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/clinical/careplan/updateprotocol/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/clinical/careplan/cancelprotocol/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/clinical/careplan/cancelprotocol/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
+    queries: "internal/clinical/careplan/listdoctorpatients/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/clinical/careplan/listdoctorpatients/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+  - engine: "postgresql"
+    schema:
+      - "migrations/"
+      - "sqlc/catalog.sql"
     queries: "internal/identity/setprofileimage"
     gen:
       go:

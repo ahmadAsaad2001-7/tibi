@@ -12,6 +12,11 @@ type DB struct {
 	Pool *pgxpool.Pool
 }
 
+// WrapPool adapts an existing *pgxpool.Pool into a *DB. Used by the
+// integration test harness (slice 18d), which starts a real Postgres
+// container and needs to hand services a *DB without re-pinging it.
+func WrapPool(pool *pgxpool.Pool) *DB { return &DB{Pool: pool} }
+
 func Connect(ctx context.Context, url string, log *slog.Logger) (*DB, error) {
 	cfg, err := pgxpool.ParseConfig(url)
 	if err != nil {
